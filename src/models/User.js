@@ -36,6 +36,19 @@ const ProgressSchema = new mongoose.Schema(
       xpToday: { type: Number, default: 0 },
       claimed: { type: Boolean, default: false },
     },
+    // ---- Cookie Clicker ----
+    cookieClicker: {
+      clickPower: { type: Number, default: 1 },
+      autoPerSecond: { type: Number, default: 0 },
+      upgrades: { type: mongoose.Schema.Types.Mixed, default: {} },
+      lastCollectedAt: { type: Date, default: Date.now },
+    },
+    // ---- Factory (reines Idle-Spiel) ----
+    factory: {
+      coinsPerSecond: { type: Number, default: 0 },
+      upgrades: { type: mongoose.Schema.Types.Mixed, default: {} },
+      lastCollectedAt: { type: Date, default: Date.now },
+    },
   },
   { _id: false }
 );
@@ -68,7 +81,15 @@ const UserSchema = new mongoose.Schema(
     banReason: { type: String, default: "" },
     warnings: { type: [WarningSchema], default: [] },
     avatar: { type: String, default: "🧑‍💻" },
+    profilePicture: { type: String, default: null }, // Base64-Data-URI, serverseitig geprüft (Größe/Format)
+    bio: { type: String, default: "", maxlength: 160 },
     ownedAvatars: { type: [String], default: [] }, // im Shop gekaufte Premium-Avatare
+
+    // ---- Abo-System (kostet Gems, keine echten Zahlungen) ----
+    subscription: {
+      tier: { type: String, enum: ["free", "basic", "pro"], default: "free" },
+      expiresAt: { type: Date, default: null }, // null = unbegrenzt (nur bei "pro")
+    },
     progress: { type: ProgressSchema, default: () => ({}) },
     lastLoginAt: { type: Date, default: null },
 

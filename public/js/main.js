@@ -8,7 +8,10 @@ function goto(page){
   render();
   if (page==="leaderboard") loadLeaderboard();
   if (page==="shop") loadShop();
-  if (page==="friends") loadFriends();
+  if (page==="friends") { loadFriends(); loadUnreadCounts(); }
+  if (page==="cookie") loadCookieState();
+  if (page==="factory") loadFactoryState();
+  if (page==="subscription") loadSubscription();
   if (page==="admin") loadAdminUsers();
 }
 function exitArcadeTimers(){
@@ -22,9 +25,15 @@ function openLesson(id){
 }
 function backToLessons(){ state.lessonId=null; render(); }
 function loadPractice(){
-  const ids = Object.keys(EXERCISES);
+  const ids = Object.keys(EXERCISES).filter(id=>exerciseCourse(id)===state.course);
   shuffle(ids);
   state.practiceInstances = ids.slice(0,8).map(makeInstance);
+}
+function switchCourse(courseId){
+  if (state.course===courseId) return;
+  state.course = courseId; state.lessonId = null;
+  if (state.page==="exercises") loadPractice();
+  render();
 }
 function exitArcadeGame(){ exitArcadeTimers(); state.arcadeGame=null; render(); }
 
@@ -45,12 +54,15 @@ function hydrateUser(serverUser){
   state.users[serverUser.username] = {
     id: serverUser._id,
     avatar: serverUser.avatar,
+    profilePicture: serverUser.profilePicture || null,
+    bio: serverUser.bio || "",
     createdAt: serverUser.createdAt,
     role: serverUser.role,
     permissions: serverUser.permissions || [],
     ownedAvatars: serverUser.ownedAvatars || [],
     warnings: serverUser.warnings || [],
     flagged: !!serverUser.flagged,
+    subscription: serverUser.subscription || {tier:"free", expiresAt:null},
     progress: Object.assign(newProgress(), serverUser.progress),
   };
   state.currentUser = serverUser.username;
@@ -202,6 +214,154 @@ async function respondFriendRequest(id, accept){
 async function removeFriendUser(id){
   if (!confirm("Diese Freundschaft wirklich beenden?")) return;
   try{ await apiDelete(`/friends/${id}`); await loadFriends(); }
+  catch(err){ alert(err.message); }
+}
+
+/* ---------- COOKIE CLICKER ---------- */
+async function loadCookieState(){
+  try{ state.cookieState = await apiGet("/idle/cookie"); }
+  catch(err){ state.cookieState = null; }
+  render();
+}
+function clickCookie(){
+  state.cookieClicks++;
+  playSound("click");
+  scheduleCookieSync();
+  render(); // schnelles visuelles Feedback, Server-Sync passiert gebündelt (siehe unten)
+}
+let _cookieSyncTimer = null;
+function scheduleCookieSync(){
+  clearTimeout(_cookieSyncTimer);
+  _cookieSyncTimer = setTimeout(syncCookieClicks, 2000);
+}
+async function syncCookieClicks(){
+  if (state.cookieClicks<=0 && !state.currentUser) return;
+  const clicks = state.cookieClicks; state.cookieClicks = 0;
+  try{
+    const res = await apiPost("/idle/cookie/collect", { clicks });
+    state.users[state.currentUser].progress.coins = res.coins;
+    await loadCookieState();
+  } catch(err){ /* still egal, nächster Sync holt es nach */ }
+}
+async function buyCookieUpgrade(upgradeId){
+  await syncCookieClicks();
+  try{
+    await apiPost("/idle/cookie/upgrade", { upgradeId });
+    playSound("coin");
+    await loadCookieState();
+  } catch(err){ alert(err.message); }
+}
+
+/* ---------- FACTORY (Idle) ---------- */
+async function loadFactoryState(){
+  try{ state.factoryState = await apiGet("/idle/factory"); }
+  catch(err){ state.factoryState = null; }
+  render();
+}
+async function collectFactory(){
+  try{
+    const res = await apiPost("/idle/factory/collect");
+    state.users[state.currentUser].progress.coins = res.coins;
+    if (res.earned>0) playSound("coin");
+    await loadFactoryState();
+  } catch(err){ alert(err.message); }
+}
+async function buyFactoryGenerator(generatorId){
+  try{
+    await apiPost("/idle/factory/upgrade", { generatorId });
+    playSound("coin");
+    await loadFactoryState();
+  } catch(err){ alert(err.message); }
+}
+
+/* ---------- ABO-SYSTEM ---------- */
+async function loadSubscription(){
+  try{ state.subscriptionState = await apiGet("/subscription"); }
+  catch(err){ state.subscriptionState = null; }
+  render();
+}
+async function buySubscriptionTier(tier){
+  if (!confirm(`Bist du sicher? Das Abo wird sofort mit Gems bezahlt.`)) return;
+  try{
+    const { user } = await apiPost("/subscription/buy", { tier });
+    hydrateUser(user);
+    playSound("win");
+    await loadSubscription();
+  } catch(err){ alert(err.message); }
+}
+
+/* ---------- CHAT (nur Text + Sticker, nur zwischen Freunden) ---------- */
+async function loadStickers(){
+  if (state.stickers.length) return;
+  try{ const {stickers} = await apiGet("/messages/stickers"); state.stickers = stickers; } catch{}
+}
+async function loadUnreadCounts(){
+  try{
+    const {unread} = await apiGet("/messages/unread");
+    state.unreadCounts = {}; unread.forEach(u=>{ state.unreadCounts[u.from]=u.count; });
+  } catch{}
+}
+async function openChat(friend){
+  state.activeChatWith = friend;
+  state.chatMessages = [];
+  render();
+  await loadStickers();
+  await loadChatMessages();
+}
+async function loadChatMessages(){
+  if (!state.activeChatWith) return;
+  try{
+    const {messages} = await apiGet(`/messages/${state.activeChatWith.id}`);
+    state.chatMessages = messages;
+    await loadUnreadCounts();
+  } catch(err){ alert(err.message); state.activeChatWith=null; }
+  render();
+}
+async function sendChatMessage(text, stickerId){
+  if (!state.activeChatWith) return;
+  if (!text.trim() && !stickerId) return;
+  try{
+    await apiPost(`/messages/${state.activeChatWith.id}`, { text, sticker: stickerId||null });
+    playSound("notify");
+    await loadChatMessages();
+  } catch(err){ alert(err.message); }
+}
+function closeChat(){ state.activeChatWith = null; render(); }
+
+/* ---------- PROFIL: BILD-UPLOAD & BIO ---------- */
+function uploadProfilePicture(input){
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 350*1024){ alert("Bild ist zu groß (max. 350KB)."); return; }
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    try{
+      const { user } = await apiPatch("/progress/profile", { picture: e.target.result });
+      hydrateUser(user);
+      render();
+    } catch(err){ alert(err.message); }
+  };
+  reader.readAsDataURL(file);
+}
+async function removeProfilePicture(){
+  try{ const { user } = await apiPatch("/progress/profile", { picture: null }); hydrateUser(user); render(); }
+  catch(err){ alert(err.message); }
+}
+async function saveBio(text){
+  try{ const { user } = await apiPatch("/progress/profile", { bio: text }); hydrateUser(user); render(); }
+  catch(err){ alert(err.message); }
+}
+
+/* ---------- ADMIN: MODERATION ---------- */
+async function adminViewMessages(id, username){
+  try{
+    const { messages } = await apiGet(`/admin/users/${id}/messages`);
+    let text = messages.length ? messages.map(m=>`[${new Date(m.createdAt).toLocaleString('de-DE')}] ${m.fromUsername} -> ${m.toUsername}: ${m.text||''} ${m.sticker?'('+m.sticker+')':''}`).join("\n") : "Keine Nachrichten.";
+    alert(`Nachrichten von ${username}:\n\n${text}`);
+  } catch(err){ alert(err.message); }
+}
+async function adminResetPicture(id){
+  try{ await apiPatch(`/admin/users/${id}/reset-picture`, {}); await loadAdminUsers(); }
   catch(err){ alert(err.message); }
 }
 

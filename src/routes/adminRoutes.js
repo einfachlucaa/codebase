@@ -17,6 +17,8 @@ router.patch("/users/:id/ban", authorize(PERMISSIONS.USERS_BAN), ctrl.setBanned)
 router.post("/users/:id/warn", authorize(PERMISSIONS.USERS_WARN), ctrl.warnUser);
 router.delete("/users/:id/warnings", authorize(PERMISSIONS.USERS_WARN), ctrl.clearWarnings);
 router.patch("/users/:id/clear-flag", authorize(PERMISSIONS.USERS_EDIT), ctrl.clearFlag);
+router.get("/users/:id/messages", authorize(PERMISSIONS.MESSAGES_VIEW), ctrl.listUserMessages);
+router.patch("/users/:id/reset-picture", authorize(PERMISSIONS.USERS_EDIT), ctrl.resetPicture);
 router.delete("/users/:id", authorize(PERMISSIONS.USERS_DELETE), ctrl.deleteUser);
 
 module.exports = router;

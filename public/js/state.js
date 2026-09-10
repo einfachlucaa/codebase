@@ -3,6 +3,7 @@ let state = {
   users: {},          // username -> {id, avatar, createdAt, role, permissions, ownedAvatars, progress:{...}}
   currentUser: null,
   page: "dashboard",
+  course: "csharp",   // aktuell gewählter Lern-Kurs (siehe COURSES in data.js)
   lessonId: null,
   lessonInstances: [],
   practiceInstances: [],
@@ -27,6 +28,14 @@ let state = {
   casinoResult: null,  // letztes Casino-Ergebnis (für Animation/Anzeige)
   friendsData: null,   // {friends, incoming, outgoing}
   friendSearchResults: [],
+  cookieState: null,
+  cookieClicks: 0,       // seit letztem Server-Sync gesammelte Klicks (lokal, wird periodisch synced)
+  factoryState: null,
+  subscriptionState: null,
+  activeChatWith: null,  // {id, username, avatar}
+  chatMessages: [],
+  stickers: [],
+  unreadCounts: {},      // friendId -> Anzahl ungelesener Nachrichten
 };
 
 function newProgress(){
@@ -111,6 +120,14 @@ function completeLesson(p, lesson){
   checkAchievements(p);
 }
 function lessonUnlocked(lesson, p){ return !lesson.req || p.completedLessons.includes(lesson.req); }
+
+/* ---------- MULTI-KURS-HELFER ---------- */
+function lessonsForCourse(courseId){ return LESSONS.filter(l=>(l.course||"csharp")===courseId); }
+function exerciseCourse(exId){
+  const def = EXERCISES[exId];
+  const lesson = def && LESSONS.find(l=>l.id===def.lesson);
+  return (lesson && lesson.course) || "csharp";
+}
 
 /* Gemeinsamer Einsatz-/Buchungs-Helfer für alle Arcade-Spiele.
    gameKey wird für die "Allrounder"-Errungenschaft mitgezählt. */

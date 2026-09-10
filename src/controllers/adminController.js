@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const ActivityLog = require("../models/ActivityLog");
+const Message = require("../models/Message");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const logActivity = require("../utils/logActivity");
@@ -102,6 +103,23 @@ const listActivity = asyncHandler(async (req, res) => {
   res.json({ logs });
 });
 
+// Moderationszugriff: Nachrichten eines Nutzers einsehen (z.B. nach einer Meldung).
+// Bewusst nur über explizite Permission (messages.view), nicht für jeden Admin automatisch.
+const listUserMessages = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select("username");
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  const messages = await Message.find({ $or: [{ from: user._id }, { to: user._id }] })
+    .sort({ createdAt: -1 }).limit(300).lean();
+  res.json({ username: user.username, messages });
+});
+
+const resetPicture = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(req.params.id, { profilePicture: null }, { new: true });
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  logActivity(req.user, "role_change", { targetUser: user.username, action: "profile_picture_reset" });
+  res.json({ user });
+});
+
 const setBanned = asyncHandler(async (req, res) => {
   const { banned, reason } = req.body;
   if (String(req.user._id) === req.params.id) {
@@ -143,5 +161,5 @@ const stats = asyncHandler(async (req, res) => {
 
 module.exports = {
   listUsers, getUser, editStats, setRole, setPermissions, setBanned, deleteUser, stats,
-  warnUser, clearWarnings, clearFlag, listActivity,
+  warnUser, clearWarnings, clearFlag, listActivity, listUserMessages, resetPicture,
 };

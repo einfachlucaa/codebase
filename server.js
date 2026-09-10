@@ -17,7 +17,7 @@ async function main() {
   // aktuell mit Inline-Event-Handlern (onclick="...") arbeitet; für mehr
   // Sicherheit wäre eine Umstellung auf addEventListener + eigene CSP sinnvoll.
   app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(express.json({ limit: "200kb" }));
+  app.use(express.json({ limit: "600kb" })); // Profilbilder (Base64) brauchen etwas mehr als Standard-JSON
   app.use(cookieParser());
 
   // REST-API

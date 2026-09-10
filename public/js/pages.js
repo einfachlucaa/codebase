@@ -48,9 +48,10 @@ function renderAuth(){
 function renderShell(inner){
   const u = state.users[state.currentUser];
   const items = [
-    ["dashboard","🏠  Dashboard"], ["learning","📚  C# Lernen"], ["exercises","🎯  Aufgaben"],
-    ["achievements","🏆  Erfolge"], ["arcade","🎮  Arcade"], ["casino","🎰  Casino"],
-    ["shop","🛒  Shop"], ["friends","👥  Freunde"],
+    ["dashboard","🏠  Dashboard"], ["learning","📚  Lernen"], ["exercises","🎯  Aufgaben"],
+    ["achievements","🏆  Erfolge"], ["arcade","🎮  Arcade"], ["cookie","🍪  Cookie Clicker"],
+    ["factory","🏭  Factory"], ["casino","🎰  Casino"],
+    ["shop","🛒  Shop"], ["subscription","💳  Abo"], ["friends","👥  Freunde"],
     ["leaderboard","🥇  Leaderboard"], ["profile","👤  Profil"], ["settings","⚙️  Einstellungen"],
   ];
   if (isAdminUser() || hasPermission("users.view")) items.push(["admin","🛡️  Admin-Panel"]);
@@ -60,7 +61,7 @@ function renderShell(inner){
   <div class="shell">
     <div class="sidebar">
       <div class="brand"><h1>🎓 C# Quest</h1><p>Lerne C# spielerisch</p></div>
-      <div class="user-chip"><span class="av">${u.avatar}</span><div><div style="font-weight:600; font-size:13px;">${escapeHtml(state.currentUser)}</div><div class="muted">${roleLabel}</div></div>
+      <div class="user-chip"><span class="av">${u.profilePicture?`<img src="${u.profilePicture}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">`:u.avatar}</span><div><div style="font-weight:600; font-size:13px;">${escapeHtml(state.currentUser)}</div><div class="muted">${roleLabel}</div></div>
         <button class="btn-ghost" style="margin-left:auto;" title="Sound an/aus" onclick="toggleSound()">${state.soundOn?"🔊":"🔇"}</button>
       </div>
       <div style="margin-top:16px;">${nav}</div>
@@ -72,22 +73,34 @@ function renderShell(inner){
   </div>`;
 }
 
+/* ---------- RENDER: KURS-SWITCHER ---------- */
+function renderCourseSwitcher(){
+  return `<div class="segmented">${COURSES.map(c=>
+    `<button class="${state.course===c.id?'active':''}" onclick="switchCourse('${c.id}')">${c.icon} ${escapeHtml(c.title)}</button>`
+  ).join("")}</div>`;
+}
+
 /* ---------- RENDER: DASHBOARD ---------- */
 function renderDashboard(){
   const p = progress();
   const u = state.users[state.currentUser];
   const need = xpForLevel(p.level);
   const pct = Math.min(100, Math.round(100*p.xp/need));
-  const completed = p.completedLessons.length, total = LESSONS.length;
-  const coursePct = Math.round(100*completed/total);
-  const nextLesson = LESSONS.find(l=>lessonUnlocked(l,p) && !p.completedLessons.includes(l.id));
+  const courseLessons = lessonsForCourse(state.course);
+  const completed = courseLessons.filter(l=>p.completedLessons.includes(l.id)).length, total = courseLessons.length;
+  const coursePct = total ? Math.round(100*completed/total) : 0;
+  const nextLesson = courseLessons.find(l=>lessonUnlocked(l,p) && !p.completedLessons.includes(l.id));
+  const courseMeta = COURSES.find(c=>c.id===state.course) || COURSES[0];
   return `
-  <div style="display:flex; align-items:center; margin-bottom:24px;">
-    <div class="gradient-bg" style="border-radius:30px; width:60px; height:60px; display:flex; align-items:center; justify-content:center; font-size:30px;">${u.avatar}</div>
-    <div style="margin-left:16px;">
-      <div class="title">Willkommen zurück, ${escapeHtml(state.currentUser)}! 👋</div>
-      <div class="body-text">Lerne C# spielerisch und werde jeden Tag besser.</div>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:14px;">
+    <div style="display:flex; align-items:center;">
+      <div class="gradient-bg" style="border-radius:30px; width:60px; height:60px; display:flex; align-items:center; justify-content:center; font-size:30px;">${u.profilePicture?`<img src="${u.profilePicture}" style="width:100%;height:100%;border-radius:30px;object-fit:cover;">`:u.avatar}</div>
+      <div style="margin-left:16px;">
+        <div class="title">Willkommen zurück, ${escapeHtml(state.currentUser)}! 👋</div>
+        <div class="body-text">Lerne ${escapeHtml(courseMeta.title)} spielerisch und werde jeden Tag besser.</div>
+      </div>
     </div>
+    ${renderCourseSwitcher()}
   </div>
   <div class="stat-grid">
     <div class="card"><div class="muted">⭐ LEVEL</div><div style="font-size:28px; font-weight:700;">${p.level}</div>
@@ -95,7 +108,7 @@ function renderDashboard(){
       <div class="muted" style="margin-top:4px;">${p.xp} / ${need} XP</div></div>
     <div class="card"><div class="muted">🪙 COINS</div><div style="font-size:28px; font-weight:700; color:var(--coin);">${p.coins}</div>
       <div class="muted" style="margin-top:20px;">Für die Arcade ausgeben</div></div>
-    <div class="card"><div class="muted">💎 GEMS</div><div style="font-size:28px; font-weight:700; color:#7fd8f5;">${p.gems}</div>
+    <div class="card"><div class="muted">💎 GEMS</div><div style="font-size:28px; font-weight:700; color:var(--gem);">${p.gems}</div>
       <div class="muted" style="margin-top:20px;">Selten — nur durch schwere Erfolge</div></div>
     <div class="card"><div class="muted">🔥 STREAK</div><div style="font-size:28px; font-weight:700; color:var(--warning);">${p.streak} Tage</div>
       <div class="muted" style="margin-top:20px;">Lerne jeden Tag weiter!</div></div>
@@ -106,7 +119,7 @@ function renderDashboard(){
     <div class="card gradient-bg">
       <div style="font-size:11px; color:#ddd; font-weight:600;">AKTUELLE LEKTION</div>
       <div style="font-size:22px; font-weight:700; color:white; margin:6px 0 16px;">${nextLesson?escapeHtml(nextLesson.title):"Alle Lektionen abgeschlossen! 🎉"}</div>
-      <button class="btn" style="background:white; color:#7c5cff;" onclick="goto('learning')">Weiterlernen ▶</button>
+      <button class="btn" style="background:white; color:var(--ios-indigo);" onclick="goto('learning')">Weiterlernen ▶</button>
     </div>
     <div class="card">
       <div class="muted">🎯 TAGESZIEL</div>
@@ -138,9 +151,13 @@ function claimDaily(){
 function renderLearning(){
   if (state.lessonId) return renderLessonDetail();
   const p = progress();
+  const courseMeta = COURSES.find(c=>c.id===state.course) || COURSES[0];
   const groups = {};
-  LESSONS.forEach(l=>{ (groups[l.grp] ||= []).push(l); });
-  let html = `<div class="title">📚 C# lernen</div><div class="body-text" style="margin-bottom:20px;">Arbeite dich Level für Level durch den Kurs.</div>`;
+  lessonsForCourse(state.course).forEach(l=>{ (groups[l.grp] ||= []).push(l); });
+  let html = `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-bottom:6px;">
+    <div class="title">${courseMeta.icon} ${escapeHtml(courseMeta.title)} lernen</div>
+    ${renderCourseSwitcher()}
+  </div><div class="body-text" style="margin-bottom:20px;">Arbeite dich Level für Level durch den Kurs.</div>`;
   Object.keys(groups).sort((a,b)=>a-b).forEach(g=>{
     const ls = groups[g];
     const done = ls.filter(l=>p.completedLessons.includes(l.id)).length;
@@ -172,8 +189,8 @@ function renderLessonDetail(){
   <div class="card" style="margin-bottom:16px;"><div class="section-title">📖 Erklärung</div><div class="body-text">${escapeHtml(l.explain)}</div></div>
   <div class="card" style="margin-bottom:16px;"><div class="section-title">💻 Beispielcode</div><div class="code-block">${escapeHtml(l.code)}</div><div class="body-text">${escapeHtml(l.codeExplain)}</div></div>
   <div class="two-col">
-    <div class="card" style="background:#241e3d;"><div style="font-weight:700; color:var(--xp); margin-bottom:8px;">🧠 Merke</div><div class="body-text">${escapeHtml(l.remember)}</div></div>
-    <div class="card" style="background:#2e2412;"><div style="font-weight:700; color:var(--warning); margin-bottom:8px;">⚡ Profi-Tipp</div><div class="body-text">${escapeHtml(l.tip)}</div></div>
+    <div class="card" style="background:rgba(94,92,230,0.16);"><div style="font-weight:700; color:var(--xp); margin-bottom:8px;">🧠 Merke</div><div class="body-text">${escapeHtml(l.remember)}</div></div>
+    <div class="card" style="background:rgba(255,159,10,0.14);"><div style="font-weight:700; color:var(--warning); margin-bottom:8px;">⚡ Profi-Tipp</div><div class="body-text">${escapeHtml(l.tip)}</div></div>
   </div>`;
   if (justDone){
     html += `<div class="card gradient-bg" style="margin:20px 0; display:flex; align-items:center; gap:14px;"><span style="font-size:30px;">🎉</span>
@@ -188,8 +205,10 @@ function renderLessonDetail(){
 function renderPractice(){
   let xpGained=0, coinsGained=0;
   state.practiceInstances.forEach(i=>{ if(i.correct){ xpGained+=EXERCISES[i.exId].xp; coinsGained+=EXERCISES[i.exId].coins; }});
-  let html = `<div class="title">🎯 Aufgaben</div>
-  <div class="body-text" style="margin-bottom:16px;">Freies Training: zufällige Aufgaben aus allen Kursbereichen für Extra-XP und Coins.</div>
+  let html = `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;">
+    <div class="title">🎯 Aufgaben</div>${renderCourseSwitcher()}
+  </div>
+  <div class="body-text" style="margin-bottom:16px;">Freies Training: zufällige Aufgaben aus dem gewählten Kurs für Extra-XP und Coins.</div>
   <div class="card" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
     <div style="display:flex; gap:24px;">
       <div><div class="muted">XP DIESE RUNDE</div><div style="font-size:20px; font-weight:700; color:var(--xp);">${xpGained}</div></div>
@@ -282,7 +301,7 @@ function renderShop(){
   <div class="body-text" style="margin-bottom:6px;">Premium-Avatare gegen Coins oder seltene Gems — reine Kosmetik, kein Gameplay-Vorteil.</div>
   <div style="margin:6px 0 20px; display:flex; gap:20px;">
     <span>🪙 Coins: <b style="color:var(--coin);">${p.coins}</b></span>
-    <span>💎 Gems: <b style="color:#7fd8f5;">${p.gems}</b></span>
+    <span>💎 Gems: <b style="color:var(--gem);">${p.gems}</b></span>
   </div>`;
   if (!state.shop){ return html + `<div class="body-text">Lade Shop...</div>`; }
   const section = (title, items)=>{
@@ -348,8 +367,9 @@ function renderCasino(){
 
 /* ---------- RENDER: FREUNDE ---------- */
 function renderFriends(){
+  if (state.activeChatWith) return renderChatPanel();
   let html = `<div class="title">👥 Freunde</div>
-  <div class="body-text" style="margin-bottom:16px;">Nutzer suchen, Freundschaftsanfragen senden und verwalten.</div>
+  <div class="body-text" style="margin-bottom:16px;">Nutzer suchen, Freundschaftsanfragen senden, verwalten und schreiben.</div>
   <input type="text" placeholder="Nutzer suchen..." style="max-width:280px; margin-bottom:12px;" oninput="searchFriendUsers(this.value)"/>`;
   if (state.friendSearchResults.length){
     html += `<div class="card" style="margin-bottom:20px;">`;
@@ -383,11 +403,111 @@ function renderFriends(){
   if (!friends.length) return html + `<div class="body-text">Noch keine Freunde — such oben nach jemandem!</div>`;
   html += `<div class="ach-grid">`;
   friends.forEach(f=>{
+    const unread = state.unreadCounts[f._id];
     html += `<div class="card" style="text-align:center;">
       <div style="font-size:32px;">${f.avatar}</div>
-      <div style="font-weight:600; margin:6px 0;">${escapeHtml(f.username)}</div>
+      <div style="font-weight:600; margin:6px 0;">${escapeHtml(f.username)} ${unread?`<span style="background:var(--danger); color:white; border-radius:10px; padding:1px 7px; font-size:11px;">${unread}</span>`:""}</div>
       <div class="muted">Level ${f.progress.level}</div>
-      <button class="btn btn-secondary" style="margin-top:10px; padding:6px 12px; color:#e05252;" onclick="removeFriendUser('${f._id}')">Entfernen</button>
+      <div style="display:flex; gap:6px; justify-content:center; margin-top:10px;">
+        <button class="btn btn-primary" style="padding:6px 12px;" onclick='openChat(${JSON.stringify({id:f._id,username:f.username,avatar:f.avatar})})'>💬 Chat</button>
+        <button class="btn btn-secondary" style="padding:6px 12px; color:var(--danger);" onclick="removeFriendUser('${f._id}')">Entfernen</button>
+      </div>
+    </div>`;
+  });
+  return html + `</div>`;
+}
+function renderChatPanel(){
+  const f = state.activeChatWith;
+  let html = `<button class="btn btn-secondary" onclick="closeChat()" style="margin-bottom:14px;">← Zurück</button>
+  <div class="title">💬 ${f.avatar} ${escapeHtml(f.username)}</div>
+  <div class="card" style="height:400px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">`;
+  if (!state.chatMessages.length) html += `<div class="muted">Noch keine Nachrichten — schreib was!</div>`;
+  state.chatMessages.forEach(m=>{
+    const mine = m.fromUsername===state.currentUser;
+    html += `<div style="align-self:${mine?'flex-end':'flex-start'}; max-width:70%; background:${mine?'var(--accent)':'var(--bg-panel)'}; color:${mine?'white':'var(--text-primary)'}; padding:8px 12px; border-radius:14px;">
+      ${m.sticker ? `<span style="font-size:28px;">${(state.stickers.find(s=>s.id===m.sticker)||{}).emoji||''}</span>` : escapeHtml(m.text)}
+      <div style="font-size:10px; opacity:.7; margin-top:4px;">${new Date(m.createdAt).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>`;
+  });
+  html += `</div>
+  <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+    ${state.stickers.map(s=>`<button class="btn btn-secondary" style="padding:6px 10px; font-size:18px;" onclick="sendChatMessage('','${s.id}')" title="${escapeHtml(s.label)}">${s.emoji}</button>`).join("")}
+  </div>
+  <div style="display:flex; gap:8px;">
+    <input id="chatInput" type="text" placeholder="Nachricht schreiben (keine Links erlaubt)..." style="flex:1;" onkeydown="if(event.key==='Enter'){sendChatMessage(this.value,null); this.value='';}"/>
+    <button class="btn btn-primary" onclick="const i=document.getElementById('chatInput'); sendChatMessage(i.value,null); i.value='';">Senden</button>
+  </div>`;
+  return html;
+}
+
+/* ---------- RENDER: COOKIE CLICKER ---------- */
+function renderCookieClicker(){
+  const s = state.cookieState;
+  const p = progress();
+  let html = `<div class="title">🍪 Cookie Clicker</div>
+  <div class="body-text" style="margin-bottom:6px;">Klick dich hoch, kauf Upgrades. Auszahlung wird serverseitig berechnet — nicht manipulierbar.</div>
+  <div style="margin:6px 0 20px;">🪙 Coins: <b style="color:var(--coin);">${p.coins}</b> ${state.cookieClicks>0?`<span class="muted">(+${state.cookieClicks} Klicks werden gleich synchronisiert...)</span>`:""}</div>`;
+  if (!s) return html + `<div class="body-text">Lade...</div>`;
+  html += `
+  <div class="two-col">
+    <div class="card" style="text-align:center;">
+      <button onclick="clickCookie()" style="border:none; background:none; cursor:pointer; font-size:120px; transition:transform .08s;" onmousedown="this.style.transform='scale(0.9)'" onmouseup="this.style.transform='scale(1)'">🍪</button>
+      <div class="muted" style="margin-top:10px;">Klick-Power: <b>${s.clickPower}</b> · Auto: <b>${s.autoPerSecond}/s</b> ${s.multiplier>1?`· <span style="color:var(--success);">x${s.multiplier.toFixed(2)} Abo-Boost</span>`:""}</div>
+    </div>
+    <div class="card">
+      <div class="section-title">Upgrades</div>
+      ${s.catalog.map(u=>`
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);">
+          <span style="font-size:22px;">${u.icon}</span>
+          <div style="flex:1;"><b>${escapeHtml(u.name)}</b><div class="muted">Besessen: ${u.owned}</div></div>
+          <button class="btn btn-secondary" ${p.coins<u.cost?"disabled":""} onclick="buyCookieUpgrade('${u.id}')">${u.cost} 🪙</button>
+        </div>`).join("")}
+    </div>
+  </div>`;
+  return html;
+}
+
+/* ---------- RENDER: FACTORY ---------- */
+function renderFactory(){
+  const s = state.factoryState;
+  const p = progress();
+  let html = `<div class="title">🏭 Factory</div>
+  <div class="body-text" style="margin-bottom:6px;">Reines Idle-Spiel: Generatoren kaufen, Produktion läuft auch offline weiter. Beim Abholen rechnet der Server die vergangene Zeit serverseitig nach.</div>
+  <div style="margin:6px 0 20px;">🪙 Coins: <b style="color:var(--coin);">${p.coins}</b></div>`;
+  if (!s) return html + `<div class="body-text">Lade...</div>`;
+  html += `
+  <div class="card gradient-bg" style="text-align:center; margin-bottom:20px;">
+    <div style="color:#ede9ff;">Wartend zum Abholen</div>
+    <div style="font-size:32px; font-weight:700; color:white;">${s.pending} 🪙</div>
+    <button class="btn" style="background:white; color:var(--ios-indigo); margin-top:10px;" onclick="collectFactory()">Abholen</button>
+    <div class="muted" style="color:#ede9ff; margin-top:8px;">${s.coinsPerSecond}/s Produktion ${s.multiplier>1?`· x${s.multiplier.toFixed(2)} Abo-Boost`:""}</div>
+  </div>
+  <div class="card">
+    <div class="section-title">Generatoren</div>
+    ${s.catalog.map(g=>`
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);">
+        <span style="font-size:22px;">${g.icon}</span>
+        <div style="flex:1;"><b>${escapeHtml(g.name)}</b><div class="muted">Besessen: ${g.owned} · +${g.cps}/s je Stück</div></div>
+        <button class="btn btn-secondary" ${p.coins<g.cost?"disabled":""} onclick="buyFactoryGenerator('${g.id}')">${g.cost} 🪙</button>
+      </div>`).join("")}
+  </div>`;
+  return html;
+}
+
+/* ---------- RENDER: ABO ---------- */
+function renderSubscription(){
+  const s = state.subscriptionState;
+  let html = `<div class="title">💳 Abo</div>
+  <div class="body-text" style="margin-bottom:16px;">Bezahlt ausschließlich mit Gems, kein Echtgeld.</div>`;
+  if (!s) return html + `<div class="body-text">Lade...</div>`;
+  html += `<div class="ach-grid">`;
+  ["free","basic","pro"].forEach(key=>{
+    const t = s.tiers[key];
+    const active = s.currentTier===key;
+    html += `<div class="card" style="${active?'border-color:var(--accent);':''}">
+      <div class="section-title">${t.label} ${active?'<span style="color:var(--success);">✓ Aktiv</span>':''}</div>
+      <div class="body-text" style="margin:8px 0 12px;">${escapeHtml(t.description)}</div>
+      ${key!=="free" ? `<button class="btn btn-primary" ${s.gems<t.costGems?"disabled":""} onclick="buySubscriptionTier('${key}')">${t.costGems} 💎 ${t.durationHours?`(${t.durationHours}h)`:"(dauerhaft)"}</button>` : ""}
     </div>`;
   });
   return html + `</div>`;
@@ -424,14 +544,16 @@ function renderAdminUsersTab(){
       <td><input type="number" id="gems_${u._id}" value="${u.progress.gems}" style="width:70px;"/></td>
       <td><input type="number" id="xp_${u._id}" value="${u.progress.xp}" style="width:80px;"/></td>
       <td><input type="number" id="level_${u._id}" value="${u.progress.level}" style="width:60px;"/></td>
-      <td>${u.banned ? `<span style="color:#e05252;">🚫 Gesperrt</span>` : `<span style="color:var(--success);">✅ Aktiv</span>`}</td>
+      <td>${u.banned ? `<span style="color:var(--danger);">🚫 Gesperrt</span>` : `<span style="color:var(--success);">✅ Aktiv</span>`}</td>
       <td style="display:flex; gap:6px; flex-wrap:wrap; padding:10px;">
         <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminEditStats('${u._id}', document.getElementById('coins_${u._id}').value, document.getElementById('xp_${u._id}').value, document.getElementById('level_${u._id}').value, document.getElementById('gems_${u._id}').value)">💾</button>
         <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminWarnUser('${u._id}')">⚠️ Verwarnen</button>
         ${u.warnings && u.warnings.length ? `<button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminClearWarnings('${u._id}')">Warns löschen</button>`:""}
-        ${u.flagged ? `<button class="btn btn-secondary" style="padding:6px 10px; color:#e0a020;" onclick="adminClearFlag('${u._id}')">🚩 Entwarnen</button>`:""}
+        ${u.flagged ? `<button class="btn btn-secondary" style="padding:6px 10px; color:var(--warning);" onclick="adminClearFlag('${u._id}')">🚩 Entwarnen</button>`:""}
+        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminViewMessages('${u._id}', '${escapeHtml(u.username)}')">💬 Nachrichten</button>
+        ${u.profilePicture ? `<button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminResetPicture('${u._id}')">🖼️ Bild löschen</button>`:""}
         <button class="btn btn-secondary" style="padding:6px 10px;" ${isSelf?"disabled":""} onclick="adminSetBanned('${u._id}', ${!u.banned})">${u.banned?"Entsperren":"Sperren"}</button>
-        <button class="btn btn-secondary" style="padding:6px 10px; color:#e05252;" ${isSelf?"disabled":""} onclick="adminDeleteUser('${u._id}', '${escapeHtml(u.username)}')">🗑️</button>
+        <button class="btn btn-secondary" style="padding:6px 10px; color:var(--danger);" ${isSelf?"disabled":""} onclick="adminDeleteUser('${u._id}', '${escapeHtml(u.username)}')">🗑️</button>
       </td>
     </tr>`;
   });
@@ -472,14 +594,22 @@ function renderProfile(){
   const p = progress();
   const u = state.users[state.currentUser];
   const avatars = AVATARS.map(a=>`<button class="btn btn-secondary avatar-pick" onclick="changeAvatar('${a}')">${a}</button>`).join("");
+  const pic = u.profilePicture
+    ? `<img src="${u.profilePicture}" style="width:100px; height:100px; border-radius:50px; object-fit:cover; margin:0 auto; display:block;">`
+    : `<div class="gradient-bg" style="border-radius:50px; width:100px; height:100px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:50px;">${u.avatar}</div>`;
   return `
   <div class="title">👤 Profil</div>
   <div class="two-col">
     <div class="card" style="text-align:center;">
-      <div class="gradient-bg" style="border-radius:50px; width:100px; height:100px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:50px;">${u.avatar}</div>
+      ${pic}
       <div class="section-title" style="margin-top:14px;">${escapeHtml(state.currentUser)}</div>
-      <div class="muted" style="margin-bottom:16px;">Dabei seit ${new Date(u.createdAt).toLocaleDateString('de-DE')}</div>
-      <div class="muted" style="margin-bottom:8px;">Avatar wählen:</div>
+      <div class="muted" style="margin-bottom:10px;">Dabei seit ${new Date(u.createdAt).toLocaleDateString('de-DE')}</div>
+      <textarea id="bioInput" maxlength="160" placeholder="Kurze Bio (max. 160 Zeichen)..." style="width:100%; margin-bottom:8px;" rows="2">${escapeHtml(u.bio||"")}</textarea>
+      <button class="btn btn-secondary" style="margin-bottom:16px;" onclick="saveBio(document.getElementById('bioInput').value)">Bio speichern</button>
+      <div class="muted" style="margin-bottom:8px;">Eigenes Profilbild hochladen (max. 350KB, PNG/JPEG/GIF/WEBP):</div>
+      <input type="file" accept="image/*" onchange="uploadProfilePicture(this)" style="margin-bottom:8px;"/>
+      ${u.profilePicture ? `<div><button class="btn-ghost" onclick="removeProfilePicture()">Bild entfernen</button></div>`:""}
+      <div class="muted" style="margin:16px 0 8px;">Oder Emoji-Avatar wählen:</div>
       <div>${avatars}</div>
     </div>
     <div class="card">
@@ -487,7 +617,7 @@ function renderProfile(){
       <div class="quick-grid" style="grid-template-columns:repeat(2,1fr);">
         <div><div class="muted">LEVEL</div><div style="font-size:20px; font-weight:700;">${p.level}</div></div>
         <div><div class="muted">COINS</div><div style="font-size:20px; font-weight:700; color:var(--coin);">${p.coins}</div></div>
-        <div><div class="muted">GEMS</div><div style="font-size:20px; font-weight:700; color:#7fd8f5;">${p.gems}</div></div>
+        <div><div class="muted">GEMS</div><div style="font-size:20px; font-weight:700; color:var(--gem);">${p.gems}</div></div>
         <div><div class="muted">LERNSERIE</div><div style="font-size:20px; font-weight:700; color:var(--warning);">${p.streak} Tage</div></div>
         <div><div class="muted">LEKTIONEN</div><div style="font-size:20px; font-weight:700;">${p.completedLessons.length}/${LESSONS.length}</div></div>
         <div><div class="muted">GELÖSTE AUFGABEN</div><div style="font-size:20px; font-weight:700;">${p.totalSolved}</div></div>
@@ -540,8 +670,11 @@ function render(){
     case "exercises": inner = renderPractice(); break;
     case "achievements": inner = renderAchievements(); break;
     case "arcade": inner = renderArcade(); break;
+    case "cookie": inner = renderCookieClicker(); break;
+    case "factory": inner = renderFactory(); break;
     case "casino": inner = renderCasino(); break;
     case "shop": inner = renderShop(); break;
+    case "subscription": inner = renderSubscription(); break;
     case "friends": inner = renderFriends(); break;
     case "leaderboard": inner = renderLeaderboard(); break;
     case "profile": inner = renderProfile(); break;

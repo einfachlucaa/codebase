@@ -8,6 +8,7 @@ const PERMISSIONS = {
   USERS_DELETE: "users.delete",
   USERS_ROLES: "users.roles",     // Rollen/Permissions anderer Nutzer ändern
   ACTIVITY_VIEW: "activity.view",
+  MESSAGES_VIEW: "messages.view", // Moderationszugriff auf private Nachrichten
 };
 
 // Standard-Permissions je Rolle (zusätzlich zu evtl. individuell vergebenen).

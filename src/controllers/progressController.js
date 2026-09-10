@@ -83,8 +83,28 @@ const saveProgress = asyncHandler(async (req, res) => {
   res.json({ progress: user.progress });
 });
 
+// Erlaubte Bildformate anhand ihrer Magic Bytes (verlässlicher als die MIME-Angabe
+// des Clients, die sich leicht fälschen lässt).
+const IMAGE_SIGNATURES = [
+  { mime: "image/png", bytes: [0x89, 0x50, 0x4e, 0x47] },
+  { mime: "image/jpeg", bytes: [0xff, 0xd8, 0xff] },
+  { mime: "image/gif", bytes: [0x47, 0x49, 0x46, 0x38] },
+  { mime: "image/webp", bytes: [0x52, 0x49, 0x46, 0x46] }, // "RIFF" (WEBP-Header danach)
+];
+const MAX_PICTURE_BYTES = 350 * 1024; // ~350KB, damit MongoDB-Dokumente klein bleiben
+
+function validateProfilePicture(dataUri) {
+  const match = /^data:(image\/[a-zA-Z+]+);base64,(.+)$/.exec(dataUri || "");
+  if (!match) throw new ApiError(400, "Ungültiges Bildformat.");
+  const buf = Buffer.from(match[2], "base64");
+  if (buf.length > MAX_PICTURE_BYTES) throw new ApiError(400, "Bild zu groß (max. 350KB).");
+  const validSignature = IMAGE_SIGNATURES.some((sig) => sig.bytes.every((b, i) => buf[i] === b));
+  if (!validSignature) throw new ApiError(400, "Datei ist kein unterstütztes Bildformat (PNG/JPEG/GIF/WEBP).");
+  return dataUri;
+}
+
 const updateProfile = asyncHandler(async (req, res) => {
-  const { avatar } = req.body;
+  const { avatar, picture, bio } = req.body;
   if (avatar) {
     const owns = req.user.ownedAvatars.includes(avatar);
     const FREE_AVATARS = ["🧑‍💻", "👩‍💻", "🧑‍🚀", "🦊", "🐱", "🐼", "🐧", "🦄", "🐸", "🤖", "🐨", "🦁"];
@@ -92,6 +112,12 @@ const updateProfile = asyncHandler(async (req, res) => {
       throw new ApiError(403, "Dieser Avatar wurde noch nicht freigeschaltet.");
     }
     req.user.avatar = avatar;
+  }
+  if (picture !== undefined) {
+    req.user.profilePicture = picture === null ? null : validateProfilePicture(picture);
+  }
+  if (bio !== undefined) {
+    req.user.bio = String(bio).slice(0, 160);
   }
   await req.user.save();
   res.json({ user: req.user });
