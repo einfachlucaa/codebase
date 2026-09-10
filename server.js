@@ -1,0 +1,45 @@
+const path = require("path");
+const express = require("express");
+const helmet = require("helmet");
+const cookieParser = require("cookie-parser");
+
+const config = require("./config/config");
+const connectDB = require("./config/db");
+const apiRouter = require("./src/routes");
+const { notFound, errorHandler } = require("./src/middleware/errorHandler");
+
+async function main() {
+  await connectDB();
+
+  const app = express();
+
+  // Grundlegende Security-Header. CSP wird deaktiviert, weil das Frontend
+  // aktuell mit Inline-Event-Handlern (onclick="...") arbeitet; für mehr
+  // Sicherheit wäre eine Umstellung auf addEventListener + eigene CSP sinnvoll.
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(express.json({ limit: "200kb" }));
+  app.use(cookieParser());
+
+  // REST-API
+  app.use("/api", apiRouter);
+
+  // Frontend (statisch) ausliefern
+  app.use(express.static(path.join(__dirname, "public")));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  });
+
+  app.use("/api", notFound);
+  app.use(errorHandler);
+
+  app.listen(config.port, () => {
+    console.log(`\n🎓 C# Quest läuft auf http://localhost:${config.port}`);
+    console.log(`   Umgebung: ${config.nodeEnv}\n`);
+  });
+}
+
+main().catch((err) => {
+  console.error("[server] Start fehlgeschlagen:", err);
+  process.exit(1);
+});
