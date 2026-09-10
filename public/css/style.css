@@ -100,7 +100,7 @@ a { color: inherit; }
 }
 
 /* ---------- GRIDS ---------- */
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
 .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 20px; }
 .lesson-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
@@ -191,3 +191,60 @@ table.lb tr.me td { background: #231a3d; }
 
 .game-card { text-align: center; }
 .game-card .gicon { font-size: 40px; }
+
+/* ============================================================
+   ANIMATIONEN & DESIGN-POLISH
+   ============================================================ */
+
+/* Seiteninhalt blendet bei jeder Navigation sanft ein */
+.content { animation: fadeInUp 0.28s ease-out; }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Karten heben sich beim Hover leicht ab */
+.card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+
+/* Leichtes "Pop" für Erfolgs-/Level-Karten */
+.gradient-bg { animation: popIn 0.35s ease-out; }
+@keyframes popIn {
+  0% { transform: scale(0.94); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Fortschrittsbalken füllt sich sichtbar auf statt zu springen */
+.progressbar-fill { transition: width 0.6s cubic-bezier(.22,1,.36,1); }
+
+/* Warn-Banner pulsiert dezent, damit man Warnungen nicht übersieht */
+.warn-banner {
+  animation: warnPulse 2.4s ease-in-out infinite;
+}
+@keyframes warnPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(255,176,32,0); }
+  50% { box-shadow: 0 0 14px rgba(255,176,32,0.35); }
+}
+
+/* Nav-Items: sanfter Slide statt hartem Farbwechsel */
+.nav-item { transition: background 0.15s ease, padding-left 0.15s ease; }
+.nav-item:hover { padding-left: 4px; }
+
+/* Buttons: leichtes Glow beim Hover auf primären Buttons */
+.btn-primary:hover:not(:disabled) { box-shadow: 0 4px 16px rgba(124,92,255,0.45); }
+
+/* Casino: Walzen-/Ergebnis-Karte fällt sichtbar "ein" */
+.casino-result-pop { animation: casinoPop 0.4s cubic-bezier(.34,1.56,.64,1); }
+@keyframes casinoPop {
+  0% { transform: scale(0.7) rotate(-3deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+/* Achievement-/Shop-Grid: leichtes Aufsteigen beim Hover */
+.ach-grid .card:hover, .game-card:hover { transform: translateY(-4px) scale(1.01); }
+
+/* Sound-Toggle-Button etwas größer & mit Hover-Feedback */
+.user-chip .btn-ghost { font-size: 18px; padding: 4px 8px; border-radius: 8px; }
+.user-chip .btn-ghost:hover { background: var(--bg-card-hover); }

@@ -1,7 +1,9 @@
 const User = require("../models/User");
+const ActivityLog = require("../models/ActivityLog");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
-const { ROLES, PERMISSIONS } = require("../config/permissions");
+const logActivity = require("../utils/logActivity");
+const { ROLES, PERMISSIONS, AUTO_BAN_AFTER_WARNINGS } = require("../config/permissions");
 
 const listUsers = asyncHandler(async (req, res) => {
   const q = (req.query.q || "").trim();
@@ -21,8 +23,9 @@ const editStats = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
 
-  const { coins, xp, level } = req.body;
+  const { coins, gems, xp, level } = req.body;
   if (coins !== undefined) user.progress.coins = Math.max(0, Number(coins));
+  if (gems !== undefined) user.progress.gems = Math.max(0, Number(gems));
   if (xp !== undefined) user.progress.xp = Math.max(0, Number(xp));
   if (level !== undefined) user.progress.level = Math.max(1, Number(level));
   user.markModified("progress");
@@ -51,6 +54,54 @@ const setPermissions = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
+// Verwarnung erteilen. Nach AUTO_BAN_AFTER_WARNINGS aktiven Verwarnungen
+// wird der Account automatisch gesperrt (kein manueller Extra-Schritt nötig).
+const warnUser = asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+  if (!reason || !reason.trim()) throw new ApiError(400, "Ein Grund für die Verwarnung ist erforderlich.");
+  if (String(req.user._id) === req.params.id) throw new ApiError(400, "Du kannst dich nicht selbst verwarnen.");
+
+  const user = await User.findById(req.params.id);
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+
+  user.warnings.push({ reason: reason.trim(), byAdmin: req.user.username });
+  let autoBanned = false;
+  if (user.warnings.length >= AUTO_BAN_AFTER_WARNINGS && !user.banned) {
+    user.banned = true;
+    user.banReason = `Automatisch gesperrt nach ${user.warnings.length} Verwarnungen.`;
+    autoBanned = true;
+  }
+  await user.save();
+  logActivity(req.user, "warn", { targetUser: user.username, reason, autoBanned });
+  res.json({ user, autoBanned });
+});
+
+// Verwarnungen zurücksetzen (z.B. nach Rücksprache/Ablauf einer Frist).
+const clearWarnings = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(req.params.id, { warnings: [] }, { new: true });
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  res.json({ user });
+});
+
+// Cheat-Flag eines Accounts manuell wieder freigeben (nach Prüfung durch Admin).
+const clearFlag = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { flagged: false, flagReason: "" },
+    { new: true }
+  );
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  res.json({ user });
+});
+
+const listActivity = asyncHandler(async (req, res) => {
+  const filter = {};
+  if (req.query.username) filter.username = req.query.username;
+  if (req.query.type) filter.type = req.query.type;
+  const logs = await ActivityLog.find(filter).sort({ createdAt: -1 }).limit(200).lean();
+  res.json({ logs });
+});
+
 const setBanned = asyncHandler(async (req, res) => {
   const { banned, reason } = req.body;
   if (String(req.user._id) === req.params.id) {
@@ -62,6 +113,7 @@ const setBanned = asyncHandler(async (req, res) => {
     { new: true }
   );
   if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  logActivity(req.user, banned ? "ban" : "unban", { targetUser: user.username, reason });
   res.json({ user });
 });
 
@@ -75,16 +127,21 @@ const deleteUser = asyncHandler(async (req, res) => {
 });
 
 const stats = asyncHandler(async (req, res) => {
-  const [totalUsers, bannedUsers, totalCoins] = await Promise.all([
+  const [totalUsers, bannedUsers, flaggedUsers, totalCoins] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ banned: true }),
+    User.countDocuments({ flagged: true }),
     User.aggregate([{ $group: { _id: null, sum: { $sum: "$progress.coins" } } }]),
   ]);
   res.json({
     totalUsers,
     bannedUsers,
+    flaggedUsers,
     totalCoinsInEconomy: totalCoins[0]?.sum || 0,
   });
 });
 
-module.exports = { listUsers, getUser, editStats, setRole, setPermissions, setBanned, deleteUser, stats };
+module.exports = {
+  listUsers, getUser, editStats, setRole, setPermissions, setBanned, deleteUser, stats,
+  warnUser, clearWarnings, clearFlag, listActivity,
+};

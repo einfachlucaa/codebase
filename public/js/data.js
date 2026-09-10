@@ -184,20 +184,21 @@ const EXERCISES = {
 };
 
 const ACHIEVEMENTS = [
-  {id:"a1", title:"Erste Schritte", desc:"Schließe deine erste Lektion ab.", icon:"🏆", check:p=>p.completedLessons.length>=1, xp:50, coins:25},
-  {id:"a2", title:"Auf dem Weg", desc:"Schließe 5 Lektionen ab.", icon:"📗", check:p=>p.completedLessons.length>=5, xp:75, coins:40},
-  {id:"a3", title:"Kursabsolvent", desc:"Schließe alle Lektionen ab.", icon:"🎓", check:p=>p.completedLessons.length>=LESSONS.length, xp:300, coins:200},
-  {id:"a4", title:"Drei am Stück", desc:"Lerne 3 Tage hintereinander.", icon:"🔥", check:p=>p.streak>=3, xp:60, coins:30},
-  {id:"a5", title:"7 Tage", desc:"Lerne 7 Tage hintereinander.", icon:"🔥", check:p=>p.streak>=7, xp:150, coins:100},
-  {id:"a6", title:"Übungsstart", desc:"Löse 10 Programmieraufgaben.", icon:"💻", check:p=>p.totalSolved>=10, xp:50, coins:30},
-  {id:"a7", title:"Coder", desc:"Löse 30 Programmieraufgaben.", icon:"💻", check:p=>p.totalSolved>=30, xp:150, coins:100},
-  {id:"a8", title:"Coin Hunter", desc:"Sammle insgesamt 1.000 Coins.", icon:"🪙", check:p=>p.totalCoinsEarned>=1000, xp:100, coins:0},
-  {id:"a9", title:"Perfekt", desc:"Löse 10 Aufgaben hintereinander richtig.", icon:"🎯", check:p=>p.bestStreak>=10, xp:120, coins:80},
-  {id:"a10", title:"Level 5", desc:"Erreiche Level 5.", icon:"⭐", check:p=>p.level>=5, xp:0, coins:100},
-  {id:"a11", title:"Zocker", desc:"Spiele 10 Runden im Arcade-Bereich (alle Spiele zusammen).", icon:"🎮", check:p=>p.arcadePlays>=10, xp:40, coins:0},
-  {id:"a12", title:"Gedächtniskünstler", desc:"Schließe eine Memory-Runde ohne Fehlversuch ab.", icon:"🧠", check:p=>p.memoryPerfect>=1, xp:80, coins:50},
-  {id:"a13", title:"Quiz-Blitz", desc:"Erreiche eine Quiz-Rush-Serie von 10 richtigen Antworten.", icon:"⚡", check:p=>p.quizRushBestStreak>=10, xp:100, coins:60},
-  {id:"a14", title:"Allrounder", desc:"Spiele alle 4 Arcade-Spiele mindestens einmal.", icon:"🕹️", check:p=>p.gamesPlayed && Object.keys(p.gamesPlayed).length>=4, xp:70, coins:40},
+  {id:"a1", title:"Erste Schritte", desc:"Schließe deine erste Lektion ab.", icon:"🏆", check:p=>p.completedLessons.length>=1, xp:50, coins:25, gems:0},
+  {id:"a2", title:"Auf dem Weg", desc:"Schließe 5 Lektionen ab.", icon:"📗", check:p=>p.completedLessons.length>=5, xp:75, coins:40, gems:0},
+  {id:"a3", title:"Kursabsolvent", desc:"Schließe alle Lektionen ab.", icon:"🎓", check:p=>p.completedLessons.length>=LESSONS.length, xp:300, coins:200, gems:10},
+  {id:"a4", title:"Drei am Stück", desc:"Lerne 3 Tage hintereinander.", icon:"🔥", check:p=>p.streak>=3, xp:60, coins:30, gems:0},
+  {id:"a5", title:"7 Tage", desc:"Lerne 7 Tage hintereinander.", icon:"🔥", check:p=>p.streak>=7, xp:150, coins:100, gems:3},
+  {id:"a6", title:"Übungsstart", desc:"Löse 10 Programmieraufgaben.", icon:"💻", check:p=>p.totalSolved>=10, xp:50, coins:30, gems:0},
+  {id:"a7", title:"Coder", desc:"Löse 30 Programmieraufgaben.", icon:"💻", check:p=>p.totalSolved>=30, xp:150, coins:100, gems:1},
+  {id:"a8", title:"Coin Hunter", desc:"Sammle insgesamt 1.000 Coins.", icon:"🪙", check:p=>p.totalCoinsEarned>=1000, xp:100, coins:0, gems:2},
+  {id:"a9", title:"Perfekt", desc:"Löse 10 Aufgaben hintereinander richtig.", icon:"🎯", check:p=>p.bestStreak>=10, xp:120, coins:80, gems:1},
+  {id:"a10", title:"Level 5", desc:"Erreiche Level 5.", icon:"⭐", check:p=>p.level>=5, xp:0, coins:100, gems:2},
+  {id:"a11", title:"Zocker", desc:"Spiele 10 Runden im Arcade-Bereich (alle Spiele zusammen).", icon:"🎮", check:p=>p.arcadePlays>=10, xp:40, coins:0, gems:0},
+  {id:"a12", title:"Gedächtniskünstler", desc:"Schließe eine Memory-Runde ohne Fehlversuch ab.", icon:"🧠", check:p=>p.memoryPerfect>=1, xp:80, coins:50, gems:0},
+  {id:"a13", title:"Quiz-Blitz", desc:"Erreiche eine Quiz-Rush-Serie von 10 richtigen Antworten.", icon:"⚡", check:p=>p.quizRushBestStreak>=10, xp:100, coins:60, gems:1},
+  {id:"a14", title:"Allrounder", desc:"Spiele alle 4 Arcade-Spiele mindestens einmal.", icon:"🕹️", check:p=>p.gamesPlayed && Object.keys(p.gamesPlayed).length>=4, xp:70, coins:40, gems:1},
+  {id:"a15", title:"Level 10 — Meister", desc:"Erreiche Level 10.", icon:"👑", check:p=>p.level>=10, xp:0, coins:150, gems:5},
 ];
 
 const AVATARS = ["🧑‍💻","👩‍💻","🧑‍🚀","🦊","🐱","🐼","🐧","🦄","🐸","🤖","🐨","🦁"];

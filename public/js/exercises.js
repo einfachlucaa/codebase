@@ -42,13 +42,16 @@ function checkExercise(container, idx){
 
   if (result.ok && !wasAlreadyCorrect){
     const p = progress();
+    const levelBefore = p.level;
     recordExercise(p, def, inst.exId, true);
     if (container==="lesson"){
       const lesson = LESSONS.find(l=>l.id===state.lessonId);
       if (state.lessonInstances.every(i=>i.correct)) completeLesson(p, lesson);
     }
+    playSound(p.level>levelBefore ? "levelup" : "correct");
   } else if (!result.ok){
     recordExercise(progress(), def, inst.exId, false);
+    playSound("wrong");
   }
   render();
 }

@@ -3,6 +3,7 @@ const User = require("../models/User");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { signToken } = require("../utils/jwt");
+const logActivity = require("../utils/logActivity");
 
 const COOKIE_OPTIONS = {
   httpOnly: true, // vor Zugriff durch clientseitiges JS (XSS) geschützt
@@ -41,6 +42,7 @@ const register = asyncHandler(async (req, res) => {
   await user.save();
 
   sendAuthCookie(res, user._id);
+  logActivity(user, "register");
   res.status(201).json({ user });
 });
 
@@ -60,6 +62,7 @@ const login = asyncHandler(async (req, res) => {
   await user.save();
 
   sendAuthCookie(res, user._id);
+  logActivity(user, "login");
   res.json({ user });
 });
 

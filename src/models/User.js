@@ -10,6 +10,7 @@ const ProgressSchema = new mongoose.Schema(
     level: { type: Number, default: 1 },
     xp: { type: Number, default: 0 },
     coins: { type: Number, default: 50 },
+    gems: { type: Number, default: 0 }, // seltene Zweitwährung, nicht im Casino einsetzbar
     totalCoinsEarned: { type: Number, default: 50 },
     streak: { type: Number, default: 0 },
     lastLearnDate: { type: String, default: null },
@@ -39,6 +40,15 @@ const ProgressSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const WarningSchema = new mongoose.Schema(
+  { reason: String, byAdmin: String, at: { type: Date, default: Date.now } },
+  { _id: false }
+);
+const FriendRequestSchema = new mongoose.Schema(
+  { user: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, username: String, at: { type: Date, default: Date.now } },
+  { _id: false }
+);
+
 const UserSchema = new mongoose.Schema(
   {
     username: {
@@ -56,10 +66,27 @@ const UserSchema = new mongoose.Schema(
     permissions: { type: [String], default: [] },
     banned: { type: Boolean, default: false },
     banReason: { type: String, default: "" },
+    warnings: { type: [WarningSchema], default: [] },
     avatar: { type: String, default: "🧑‍💻" },
     ownedAvatars: { type: [String], default: [] }, // im Shop gekaufte Premium-Avatare
     progress: { type: ProgressSchema, default: () => ({}) },
     lastLoginAt: { type: Date, default: null },
+
+    // ---- Anti-Cheat / Sicherheit ----
+    lastSyncAt: { type: Date, default: null },
+    dailyEconomy: {
+      date: { type: String, default: null },
+      xpGained: { type: Number, default: 0 },
+      coinsGained: { type: Number, default: 0 },
+      gemsGained: { type: Number, default: 0 },
+    },
+    flagged: { type: Boolean, default: false },
+    flagReason: { type: String, default: "" },
+
+    // ---- Freunde ----
+    friends: { type: [mongoose.Schema.Types.ObjectId], ref: "User", default: [] },
+    friendRequestsIncoming: { type: [FriendRequestSchema], default: [] },
+    friendRequestsOutgoing: { type: [FriendRequestSchema], default: [] },
   },
   { timestamps: true }
 );

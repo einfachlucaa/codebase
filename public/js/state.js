@@ -20,11 +20,18 @@ let state = {
   shop: null,          // {items, owned, coins}
   adminUsers: null,
   adminQuery: "",
+  adminActivity: null,
+  adminTab: "users",   // "users" | "activity"
+  soundOn: true,
+  casinoBusy: false,
+  casinoResult: null,  // letztes Casino-Ergebnis (für Animation/Anzeige)
+  friendsData: null,   // {friends, incoming, outgoing}
+  friendSearchResults: [],
 };
 
 function newProgress(){
   return {
-    level:1, xp:0, coins:50, totalCoinsEarned:50,
+    level:1, xp:0, coins:50, gems:0, totalCoinsEarned:50,
     streak:0, lastLearnDate:null,
     completedLessons:[], completedExercises:[], unlocked:[],
     totalSolved:0, currentStreak:0, bestStreak:0,
@@ -49,6 +56,10 @@ function addCoins(p, amount){
   if (amount<=0) return;
   p.coins += amount; p.totalCoinsEarned += amount;
 }
+function addGems(p, amount){
+  if (amount<=0) return;
+  p.gems += amount;
+}
 function registerLearningDay(p){
   const t = todayStr();
   if (!p.lastLearnDate) p.streak = 1;
@@ -65,7 +76,7 @@ function checkAchievements(p){
   const unlocked = [];
   ACHIEVEMENTS.forEach(a=>{
     if (!p.unlocked.includes(a.id) && a.check(p)){
-      p.unlocked.push(a.id); addXp(p,a.xp); addCoins(p,a.coins); unlocked.push(a);
+      p.unlocked.push(a.id); addXp(p,a.xp); addCoins(p,a.coins); addGems(p, a.gems||0); unlocked.push(a);
     }
   });
   return unlocked;
@@ -73,10 +84,18 @@ function checkAchievements(p){
 function recordExercise(p, exDef, exId, correct){
   registerLearningDay(p);
   if (correct){
-    if (!p.completedExercises.includes(exId)) p.completedExercises.push(exId);
+    // Sicherheitsfix: volle XP/Coins nur beim ERSTEN Lösen einer Aufgabe.
+    // Vorher konnte man durch "Neue Aufgaben mischen" dieselbe Aufgabe beliebig
+    // oft neu bekommen und unendlich XP/Coins farmen. Wiederholtes Üben gibt
+    // jetzt nur noch einen kleinen Übungsbonus (20%).
+    const firstTime = !p.completedExercises.includes(exId);
+    if (firstTime) p.completedExercises.push(exId);
     p.totalSolved++; p.currentStreak++; p.bestStreak = Math.max(p.bestStreak, p.currentStreak);
-    p.daily.exToday++; p.daily.xpToday += exDef.xp;
-    addXp(p, exDef.xp); addCoins(p, exDef.coins);
+    p.daily.exToday++;
+    const xpGain = firstTime ? exDef.xp : Math.ceil(exDef.xp*0.2);
+    const coinGain = firstTime ? exDef.coins : Math.ceil(exDef.coins*0.2);
+    p.daily.xpToday += xpGain;
+    addXp(p, xpGain); addCoins(p, coinGain);
   } else {
     p.currentStreak = 0;
   }

@@ -8,6 +8,7 @@ function goto(page){
   render();
   if (page==="leaderboard") loadLeaderboard();
   if (page==="shop") loadShop();
+  if (page==="friends") loadFriends();
   if (page==="admin") loadAdminUsers();
 }
 function exitArcadeTimers(){
@@ -48,6 +49,8 @@ function hydrateUser(serverUser){
     role: serverUser.role,
     permissions: serverUser.permissions || [],
     ownedAvatars: serverUser.ownedAvatars || [],
+    warnings: serverUser.warnings || [],
+    flagged: !!serverUser.flagged,
     progress: Object.assign(newProgress(), serverUser.progress),
   };
   state.currentUser = serverUser.username;
@@ -149,6 +152,59 @@ async function buyShopAvatar(avatar){
   } catch(err){ alert(err.message); }
 }
 
+/* ---------- SOUND-TOGGLE ---------- */
+function toggleSound(){ state.soundOn = !state.soundOn; if(state.soundOn) playSound("notify"); render(); }
+
+/* ---------- CASINO (serverseitig berechnet, nur virtuelle Coins) ---------- */
+async function playCasinoCoinflip(bet, choice){
+  if (state.casinoBusy) return;
+  state.casinoBusy = true; state.casinoResult = null; render();
+  try{
+    const res = await apiPost("/casino/coinflip", { bet, choice });
+    state.users[state.currentUser].progress.coins = res.coins;
+    state.casinoResult = { game:"coinflip", ...res };
+    playSound(res.win ? "win" : "lose");
+  } catch(err){ alert(err.message); }
+  finally{ state.casinoBusy = false; render(); }
+}
+async function playCasinoSlots(bet){
+  if (state.casinoBusy) return;
+  state.casinoBusy = true; state.casinoResult = null; render();
+  try{
+    const res = await apiPost("/casino/slots", { bet });
+    state.users[state.currentUser].progress.coins = res.coins;
+    state.casinoResult = { game:"slots", ...res };
+    playSound(res.payout>0 ? "win" : "lose");
+  } catch(err){ alert(err.message); }
+  finally{ state.casinoBusy = false; render(); }
+}
+
+/* ---------- FREUNDE ---------- */
+async function loadFriends(){
+  try{ state.friendsData = await apiGet("/friends"); }
+  catch(err){ state.friendsData = {friends:[],incoming:[],outgoing:[]}; }
+  render();
+}
+async function searchFriendUsers(q){
+  if (!q || q.trim().length<2){ state.friendSearchResults = []; render(); return; }
+  try{ const {users} = await apiGet(`/friends/search?q=${encodeURIComponent(q.trim())}`); state.friendSearchResults = users; }
+  catch{ state.friendSearchResults = []; }
+  render();
+}
+async function sendFriendRequest(id){
+  try{ await apiPost(`/friends/request/${id}`); playSound("notify"); await loadFriends(); }
+  catch(err){ alert(err.message); }
+}
+async function respondFriendRequest(id, accept){
+  try{ await apiPost(`/friends/respond/${id}`, { accept }); await loadFriends(); }
+  catch(err){ alert(err.message); }
+}
+async function removeFriendUser(id){
+  if (!confirm("Diese Freundschaft wirklich beenden?")) return;
+  try{ await apiDelete(`/friends/${id}`); await loadFriends(); }
+  catch(err){ alert(err.message); }
+}
+
 /* ---------- ADMIN-PANEL ---------- */
 async function loadAdminUsers(){
   if (!isAdminUser() && !hasPermission("users.view")) return;
@@ -159,9 +215,9 @@ async function loadAdminUsers(){
   render();
 }
 function adminSearch(q){ state.adminQuery = q; loadAdminUsers(); }
-async function adminEditStats(id, coins, xp, level){
+async function adminEditStats(id, coins, xp, level, gems){
   try{
-    await apiPatch(`/admin/users/${id}/stats`, { coins:Number(coins), xp:Number(xp), level:Number(level) });
+    await apiPatch(`/admin/users/${id}/stats`, { coins:Number(coins), xp:Number(xp), level:Number(level), gems:Number(gems) });
     await loadAdminUsers();
   } catch(err){ alert(err.message); }
 }
@@ -176,6 +232,31 @@ async function adminTogglePermission(id, perm, checked){
   try{ await apiPatch(`/admin/users/${id}/permissions`, { permissions:[...current] }); await loadAdminUsers(); }
   catch(err){ alert(err.message); }
 }
+async function adminWarnUser(id){
+  const reason = prompt("Grund für die Verwarnung:");
+  if (!reason || !reason.trim()) return;
+  try{
+    const { autoBanned } = await apiPost(`/admin/users/${id}/warn`, { reason: reason.trim() });
+    if (autoBanned) alert("Nutzer hat die maximale Anzahl Verwarnungen erreicht und wurde automatisch gesperrt.");
+    await loadAdminUsers();
+  } catch(err){ alert(err.message); }
+}
+async function adminClearWarnings(id){
+  if (!confirm("Alle Verwarnungen dieses Nutzers löschen?")) return;
+  try{ await apiDelete(`/admin/users/${id}/warnings`); await loadAdminUsers(); }
+  catch(err){ alert(err.message); }
+}
+async function adminClearFlag(id){
+  try{ await apiPatch(`/admin/users/${id}/clear-flag`, {}); await loadAdminUsers(); }
+  catch(err){ alert(err.message); }
+}
+async function loadAdminActivity(){
+  try{ const { logs } = await apiGet("/admin/activity"); state.adminActivity = logs; }
+  catch(err){ state.adminActivity = []; }
+  render();
+}
+function setAdminTab(tab){ state.adminTab = tab; render(); if (tab==="activity") loadAdminActivity(); }
+
 async function adminSetBanned(id, banned){
   const reason = banned ? (prompt("Grund für die Sperre (optional):")||"") : "";
   try{ await apiPatch(`/admin/users/${id}/ban`, { banned, reason }); await loadAdminUsers(); }

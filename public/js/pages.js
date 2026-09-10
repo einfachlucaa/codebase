@@ -49,7 +49,8 @@ function renderShell(inner){
   const u = state.users[state.currentUser];
   const items = [
     ["dashboard","🏠  Dashboard"], ["learning","📚  C# Lernen"], ["exercises","🎯  Aufgaben"],
-    ["achievements","🏆  Erfolge"], ["arcade","🎮  Arcade"], ["shop","🛒  Shop"],
+    ["achievements","🏆  Erfolge"], ["arcade","🎮  Arcade"], ["casino","🎰  Casino"],
+    ["shop","🛒  Shop"], ["friends","👥  Freunde"],
     ["leaderboard","🥇  Leaderboard"], ["profile","👤  Profil"], ["settings","⚙️  Einstellungen"],
   ];
   if (isAdminUser() || hasPermission("users.view")) items.push(["admin","🛡️  Admin-Panel"]);
@@ -59,10 +60,15 @@ function renderShell(inner){
   <div class="shell">
     <div class="sidebar">
       <div class="brand"><h1>🎓 C# Quest</h1><p>Lerne C# spielerisch</p></div>
-      <div class="user-chip"><span class="av">${u.avatar}</span><div><div style="font-weight:600; font-size:13px;">${escapeHtml(state.currentUser)}</div><div class="muted">${roleLabel}</div></div></div>
+      <div class="user-chip"><span class="av">${u.avatar}</span><div><div style="font-weight:600; font-size:13px;">${escapeHtml(state.currentUser)}</div><div class="muted">${roleLabel}</div></div>
+        <button class="btn-ghost" style="margin-left:auto;" title="Sound an/aus" onclick="toggleSound()">${state.soundOn?"🔊":"🔇"}</button>
+      </div>
       <div style="margin-top:16px;">${nav}</div>
     </div>
-    <div class="content">${inner}</div>
+    <div class="content">
+      ${u.warnings && u.warnings.length>0 ? `<div class="warn-banner" style="margin-bottom:16px;">⚠️ Du hast ${u.warnings.length} Verwarnung(en) erhalten. Letzter Grund: "${escapeHtml(u.warnings[u.warnings.length-1].reason)}". Bei weiteren Verstößen wird dein Konto automatisch gesperrt.</div>` : ""}
+      ${inner}
+    </div>
   </div>`;
 }
 
@@ -89,6 +95,8 @@ function renderDashboard(){
       <div class="muted" style="margin-top:4px;">${p.xp} / ${need} XP</div></div>
     <div class="card"><div class="muted">🪙 COINS</div><div style="font-size:28px; font-weight:700; color:var(--coin);">${p.coins}</div>
       <div class="muted" style="margin-top:20px;">Für die Arcade ausgeben</div></div>
+    <div class="card"><div class="muted">💎 GEMS</div><div style="font-size:28px; font-weight:700; color:#7fd8f5;">${p.gems}</div>
+      <div class="muted" style="margin-top:20px;">Selten — nur durch schwere Erfolge</div></div>
     <div class="card"><div class="muted">🔥 STREAK</div><div style="font-size:28px; font-weight:700; color:var(--warning);">${p.streak} Tage</div>
       <div class="muted" style="margin-top:20px;">Lerne jeden Tag weiter!</div></div>
     <div class="card"><div class="muted">📚 LERNFORTSCHRITT</div><div style="font-size:28px; font-weight:700;">${completed}/${total}</div>
@@ -117,7 +125,14 @@ function renderDashboard(){
   <div class="warn-banner" style="margin-top:24px;">✅ Dein Fortschritt wird automatisch in der Datenbank gespeichert — du kannst dich von jedem Gerät aus wieder einloggen.</div>
   `;
 }
-function claimDaily(){ const p=progress(); p.daily.claimed=true; addCoins(p,100); render(); }
+function claimDaily(){
+  const p=progress();
+  // Sicherheitsfix: Guard gegen Mehrfachaufruf (z.B. über die Browser-Konsole).
+  if (p.daily.claimed) return;
+  const unlocked = p.daily.exToday>=3 || p.daily.xpToday>=100 || p.daily.lessonsToday>=1;
+  if (!unlocked) return;
+  p.daily.claimed=true; addCoins(p,100); playSound("coin"); render();
+}
 
 /* ---------- RENDER: LEARNING ---------- */
 function renderLearning(){
@@ -202,10 +217,10 @@ function renderAchievements(){
 
 /* ---------- RENDER: ARCADE ---------- */
 const ARCADE_GAMES = [
-  {key:"bubble", icon:"🫧", title:"Bubble Shooter", desc:"Poppe verbundene Kugeln gleicher Farbe und sammle Combo-Punkte.", cost:BUBBLE_COST??20, high:p=>p.bubbleHigh, start:"startBubble", unlockLevel:1},
-  {key:"tap", icon:"⚡", title:"TapTap Arrow", desc:"Reagiere blitzschnell auf die richtige Pfeilrichtung.", cost:TAP_COST??10, high:p=>p.tapHigh, start:"startTap", unlockLevel:2},
-  {key:"memory", icon:"🧠", title:"Memory Match", desc:"Finde Paare aus C#-Begriff und passender Erklärung.", cost:MEMORY_COST??15, high:p=>p.memoryHigh, start:"startMemory", unlockLevel:3},
-  {key:"quizrush", icon:"🚀", title:"Quiz Rush", desc:"Beantworte C#-Fragen im Rennen gegen die Uhr, 3 Leben.", cost:QUIZRUSH_COST??15, high:p=>p.quizRushHigh, start:"startQuizRush", unlockLevel:4},
+  {key:"bubble", icon:"🫧", title:"Bubble Shooter", desc:"Poppe verbundene Kugeln gleicher Farbe und sammle Combo-Punkte.", cost:0, high:p=>p.bubbleHigh, start:"startBubble", unlockLevel:1},
+  {key:"tap", icon:"⚡", title:"TapTap Arrow", desc:"Reagiere blitzschnell auf die richtige Pfeilrichtung.", cost:15, high:p=>p.tapHigh, start:"startTap", unlockLevel:2},
+  {key:"memory", icon:"🧠", title:"Memory Match", desc:"Finde Paare aus C#-Begriff und passender Erklärung.", cost:20, high:p=>p.memoryHigh, start:"startMemory", unlockLevel:3},
+  {key:"quizrush", icon:"🚀", title:"Quiz Rush", desc:"Beantworte C#-Fragen im Rennen gegen die Uhr, 3 Leben.", cost:25, high:p=>p.quizRushHigh, start:"startQuizRush", unlockLevel:4},
 ];
 function renderArcade(){
   if (state.arcadeGame==="bubble") return renderBubbleGame();
@@ -226,28 +241,36 @@ function renderArcade(){
       <div class="section-title" style="margin:10px 0 4px;">${escapeHtml(g.title)}</div>
       <div class="body-text">${escapeHtml(g.desc)}</div>
       <div class="muted" style="margin:10px 0 14px;">${levelLocked?`🔒 Ab Level ${g.unlockLevel}`:`🏆 Highscore: ${g.high(p)}`}</div>
-      <button class="btn btn-primary" ${disabled?"disabled":""} onclick="${g.start}()">${levelLocked?"Gesperrt":`Spielen — ${g.cost} 🪙`}</button>
+      <button class="btn btn-primary" ${disabled?"disabled":""} onclick="${g.start}()">${levelLocked?"Gesperrt":(g.cost===0?"Kostenlos spielen 🎮":`Spielen — ${g.cost} 🪙`)}</button>
     </div>`;
   });
   return html+`</div>`;
 }
 
 /* ---------- RENDER: LEADERBOARD ---------- */
+const LEADERBOARD_TABS = [
+  {key:"xp", label:"⭐ XP"}, {key:"coins", label:"🪙 Coins"}, {key:"gems", label:"💎 Gems"},
+  {key:"streak", label:"🔥 Streak"}, {key:"bubble", label:"🫧 Bubble"}, {key:"tap", label:"⚡ TapTap"},
+  {key:"memory", label:"🧠 Memory"}, {key:"quizrush", label:"🚀 QuizRush"},
+];
 function renderLeaderboard(){
   const rows = state.leaderboardRows;
-  const sortBtn = (key,label)=>`<button class="btn ${state.leaderboardSort===key?'btn-primary':'btn-secondary'}" style="padding:8px 14px;" onclick="loadLeaderboard('${key}')">${label}</button>`;
+  const tabs = LEADERBOARD_TABS.map(t=>
+    `<button class="btn ${state.leaderboardSort===t.key?'btn-primary':'btn-secondary'}" style="padding:8px 14px;" onclick="loadLeaderboard('${t.key}')">${t.label}</button>`
+  ).join("");
+  const activeLabel = (LEADERBOARD_TABS.find(t=>t.key===state.leaderboardSort)||{}).label || "";
   let html = `<div class="title">🥇 Leaderboard</div>
-  <div class="body-text" style="margin-bottom:14px;">Die besten Spieler aus der MongoDB-Datenbank — serverweit, nicht nur dieser Browser.</div>
-  <div style="display:flex; gap:8px; margin-bottom:18px;">${sortBtn('xp','⭐ Nach XP')} ${sortBtn('coins','🪙 Nach Coins')} ${sortBtn('streak','🔥 Nach Streak')}</div>`;
+  <div class="body-text" style="margin-bottom:14px;">Serverweite Ranglisten aus der Datenbank — pro Kategorie und pro Arcade-Spiel.</div>
+  <div style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">${tabs}</div>`;
   if (rows===null){ return html + `<div class="body-text">Lade Rangliste...</div>`; }
   if (rows.length===0){ return html + `<div class="body-text">Noch keine Einträge.</div>`; }
-  html += `<div class="card" style="padding:0;"><table class="lb">`;
+  html += `<div class="card" style="padding:0;"><table class="lb">
+    <tr><th></th><th></th><th style="text-align:left;">Spieler</th><th>Level</th><th>${activeLabel}</th></tr>`;
   rows.forEach((r,i)=>{
     const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`;
     html += `<tr class="${r.username===state.currentUser?'me':''}">
       <td>${medal}</td><td style="font-size:20px;">${r.avatar}</td><td><b>${escapeHtml(r.username)}</b></td>
-      <td>Lvl ${r.level}</td><td style="color:var(--xp);">${r.totalXp} XP</td>
-      <td style="color:var(--coin);">🪙 ${r.coins}</td><td style="color:var(--warning);">🔥 ${r.streak}</td></tr>`;
+      <td>Lvl ${r.level}</td><td style="color:var(--xp); font-weight:700;">${r.score}</td></tr>`;
   });
   return html+`</table></div>`;
 }
@@ -256,48 +279,157 @@ function renderLeaderboard(){
 function renderShop(){
   const p = progress();
   let html = `<div class="title">🛒 Shop</div>
-  <div class="body-text" style="margin-bottom:6px;">Premium-Avatare gegen deine gesammelten Coins — reine Kosmetik, kein Gameplay-Vorteil.</div>
-  <div style="margin:6px 0 20px;">🪙 Dein Guthaben: <b style="color:var(--coin);">${p.coins}</b></div>`;
+  <div class="body-text" style="margin-bottom:6px;">Premium-Avatare gegen Coins oder seltene Gems — reine Kosmetik, kein Gameplay-Vorteil.</div>
+  <div style="margin:6px 0 20px; display:flex; gap:20px;">
+    <span>🪙 Coins: <b style="color:var(--coin);">${p.coins}</b></span>
+    <span>💎 Gems: <b style="color:#7fd8f5;">${p.gems}</b></span>
+  </div>`;
   if (!state.shop){ return html + `<div class="body-text">Lade Shop...</div>`; }
+  const section = (title, items)=>{
+    let s = `<div class="section-title" style="margin-top:10px;">${title}</div><div class="ach-grid">`;
+    items.forEach(item=>{
+      const owned = state.shop.owned.includes(item.avatar);
+      const balance = item.currency==="gems" ? p.gems : p.coins;
+      const disabled = !owned && balance < item.cost;
+      const unit = item.currency==="gems" ? "💎" : "🪙";
+      s += `<div class="card" style="text-align:center;">
+        <div style="font-size:40px;">${item.avatar}</div>
+        <div style="font-weight:600; margin:8px 0 4px;">${escapeHtml(item.name)}</div>
+        ${owned
+          ? `<button class="btn btn-secondary" onclick="changeAvatar('${item.avatar}')">Ausrüsten</button>`
+          : `<button class="btn btn-primary" ${disabled?"disabled":""} onclick="buyShopAvatar('${item.avatar}')">Kaufen — ${item.cost} ${unit}</button>`}
+      </div>`;
+    });
+    return s + `</div>`;
+  };
+  html += section("🪙 Coin-Avatare", state.shop.coinItems);
+  html += section("💎 Gem-Avatare (selten)", state.shop.gemItems);
+  return html;
+}
+
+/* ---------- RENDER: CASINO (nur virtuelle Coins, kein Echtgeld) ---------- */
+function renderCasino(){
+  const p = progress();
+  const r = state.casinoResult;
+  let resultHtml = "";
+  if (r && r.game==="coinflip"){
+    resultHtml = `<div class="card gradient-bg casino-result-pop" style="margin:16px 0; text-align:center;">
+      <div style="font-size:40px;">${r.result==="heads"?"🪙":"🌑"}</div>
+      <div style="color:white; font-weight:700; margin-top:6px;">${r.result==="heads"?"Kopf":"Zahl"} — ${r.win?`Gewonnen! +${r.payout} 🪙`:"Verloren"}</div>
+    </div>`;
+  } else if (r && r.game==="slots"){
+    resultHtml = `<div class="card gradient-bg casino-result-pop" style="margin:16px 0; text-align:center;">      <div style="font-size:40px; letter-spacing:10px;">${r.reels.join(" ")}</div>
+      <div style="color:white; font-weight:700; margin-top:6px;">${r.payout>0?`Gewonnen! +${r.payout} 🪙`:"Verloren"}</div>
+    </div>`;
+  }
+  return `
+  <div class="title">🎰 Casino</div>
+  <div class="body-text" style="margin-bottom:6px;">Nur virtuelle Coins, kein Echtgeld — die Ergebnisse werden serverseitig gewürfelt, nicht manipulierbar.</div>
+  <div style="margin:6px 0 20px;">🪙 Dein Guthaben: <b style="color:var(--coin);">${p.coins}</b></div>
+  ${resultHtml}
+  <div class="two-col">
+    <div class="card">
+      <div class="section-title">🪙 Coinflip</div>
+      <div class="body-text" style="margin-bottom:12px;">Kopf oder Zahl — bei Treffer verdoppelter Einsatz.</div>
+      <input id="cfBet" type="number" value="20" min="5" max="500" style="width:100px; margin-bottom:10px;"/>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-primary" ${state.casinoBusy?"disabled":""} onclick="playCasinoCoinflip(document.getElementById('cfBet').value,'heads')">Kopf 🪙</button>
+        <button class="btn btn-primary" ${state.casinoBusy?"disabled":""} onclick="playCasinoCoinflip(document.getElementById('cfBet').value,'tails')">Zahl 🌑</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">🎰 Slots</div>
+      <div class="body-text" style="margin-bottom:12px;">3 gleiche Symbole = großer Gewinn, 2 gleiche = kleiner Trostgewinn.</div>
+      <input id="slBet" type="number" value="20" min="5" max="500" style="width:100px; margin-bottom:10px;"/>
+      <div><button class="btn btn-primary" ${state.casinoBusy?"disabled":""} onclick="playCasinoSlots(document.getElementById('slBet').value)">Drehen 🎰</button></div>
+    </div>
+  </div>`;
+}
+
+/* ---------- RENDER: FREUNDE ---------- */
+function renderFriends(){
+  let html = `<div class="title">👥 Freunde</div>
+  <div class="body-text" style="margin-bottom:16px;">Nutzer suchen, Freundschaftsanfragen senden und verwalten.</div>
+  <input type="text" placeholder="Nutzer suchen..." style="max-width:280px; margin-bottom:12px;" oninput="searchFriendUsers(this.value)"/>`;
+  if (state.friendSearchResults.length){
+    html += `<div class="card" style="margin-bottom:20px;">`;
+    state.friendSearchResults.forEach(u=>{
+      html += `<div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+        <span style="font-size:20px;">${u.avatar}</span><b>${escapeHtml(u.username)}</b><span class="muted">Lvl ${u.progress.level}</span>
+        <button class="btn btn-secondary" style="margin-left:auto; padding:6px 12px;" onclick="sendFriendRequest('${u._id}')">+ Anfrage</button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  if (!state.friendsData) return html + `<div class="body-text">Lade Freunde...</div>`;
+  const {friends, incoming, outgoing} = state.friendsData;
+  if (incoming.length){
+    html += `<div class="section-title">Eingehende Anfragen</div><div class="card" style="margin-bottom:20px;">`;
+    incoming.forEach(r=>{
+      html += `<div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+        <b>${escapeHtml(r.username)}</b>
+        <button class="btn btn-primary" style="margin-left:auto; padding:6px 12px;" onclick="respondFriendRequest('${r.user._id||r.user}', true)">Annehmen</button>
+        <button class="btn btn-secondary" style="padding:6px 12px;" onclick="respondFriendRequest('${r.user._id||r.user}', false)">Ablehnen</button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  if (outgoing.length){
+    html += `<div class="section-title">Gesendete Anfragen</div><div class="card" style="margin-bottom:20px;">`;
+    outgoing.forEach(r=>{ html += `<div class="body-text" style="padding:4px 0;">${escapeHtml(r.username)} — ausstehend</div>`; });
+    html += `</div>`;
+  }
+  html += `<div class="section-title">Deine Freunde (${friends.length})</div>`;
+  if (!friends.length) return html + `<div class="body-text">Noch keine Freunde — such oben nach jemandem!</div>`;
   html += `<div class="ach-grid">`;
-  state.shop.items.forEach(item=>{
-    const owned = state.shop.owned.includes(item.avatar);
-    const disabled = !owned && p.coins < item.cost;
+  friends.forEach(f=>{
     html += `<div class="card" style="text-align:center;">
-      <div style="font-size:40px;">${item.avatar}</div>
-      <div style="font-weight:600; margin:8px 0 4px;">${escapeHtml(item.name)}</div>
-      ${owned
-        ? `<button class="btn btn-secondary" onclick="changeAvatar('${item.avatar}')">Ausrüsten</button>`
-        : `<button class="btn btn-primary" ${disabled?"disabled":""} onclick="buyShopAvatar('${item.avatar}')">Kaufen — ${item.cost} 🪙</button>`}
+      <div style="font-size:32px;">${f.avatar}</div>
+      <div style="font-weight:600; margin:6px 0;">${escapeHtml(f.username)}</div>
+      <div class="muted">Level ${f.progress.level}</div>
+      <button class="btn btn-secondary" style="margin-top:10px; padding:6px 12px; color:#e05252;" onclick="removeFriendUser('${f._id}')">Entfernen</button>
     </div>`;
   });
-  return html+`</div>`;
+  return html + `</div>`;
 }
 
 /* ---------- RENDER: ADMIN-PANEL ---------- */
 function renderAdmin(){
+  const tabBtn = (key,label)=>`<button class="btn ${state.adminTab===key?'btn-primary':'btn-secondary'}" style="padding:8px 14px;" onclick="setAdminTab('${key}')">${label}</button>`;
   let html = `<div class="title">🛡️ Admin-Panel</div>
-  <div class="body-text" style="margin-bottom:16px;">Nutzerverwaltung, Rollen, Berechtigungen und Sperren. Nur für Admins/Moderatoren sichtbar.</div>
-  <input type="text" placeholder="Nutzer suchen..." value="${escapeHtml(state.adminQuery||'')}" style="max-width:280px; margin-bottom:16px;"
+  <div class="body-text" style="margin-bottom:16px;">Nutzerverwaltung, Rollen, Berechtigungen, Verwarnungen, Sperren und Live-Aktivität.</div>
+  <div style="display:flex; gap:8px; margin-bottom:18px;">${tabBtn('users','👥 Nutzer')} ${tabBtn('activity','📜 Aktivität')}</div>`;
+  if (state.adminTab==="activity") return html + renderAdminActivity();
+  return html + renderAdminUsersTab();
+}
+function renderAdminUsersTab(){
+  let html = `<input type="text" placeholder="Nutzer suchen..." value="${escapeHtml(state.adminQuery||'')}" style="max-width:280px; margin-bottom:16px;"
     oninput="adminSearch(this.value)"/>`;
   if (!state.adminUsers){ return html + `<div class="body-text">Lade Nutzer...</div>`; }
   html += `<div class="card" style="padding:0; overflow-x:auto;"><table class="lb">
-    <tr><th style="text-align:left; padding:10px;">Nutzer</th><th>Rolle</th><th>Coins</th><th>XP</th><th>Level</th><th>Status</th><th>Aktionen</th></tr>`;
+    <tr><th style="text-align:left; padding:10px;">Nutzer</th><th>Rolle</th><th>Coins</th><th>Gems</th><th>XP</th><th>Level</th><th>Status</th><th>Aktionen</th></tr>`;
   state.adminUsers.forEach(u=>{
     const isSelf = u.username===state.currentUser;
     html += `<tr>
-      <td style="padding:10px;"><span style="font-size:18px;">${u.avatar}</span> <b>${escapeHtml(u.username)}</b></td>
+      <td style="padding:10px;"><span style="font-size:18px;">${u.avatar}</span> <b>${escapeHtml(u.username)}</b>
+        ${u.warnings && u.warnings.length ? `<span title="${u.warnings.length} Verwarnung(en)" style="margin-left:4px;">⚠️${u.warnings.length}</span>`:""}
+        ${u.flagged ? `<span title="${escapeHtml(u.flagReason||'')}" style="margin-left:4px;">🚩</span>`:""}
+      </td>
       <td>
         <select onchange="adminSetRole('${u._id}', this.value)" ${isSelf?"disabled":""}>
           ${(state.adminRoles||["user","moderator","admin"]).map(r=>`<option value="${r}" ${u.role===r?"selected":""}>${r}</option>`).join("")}
         </select>
       </td>
       <td><input type="number" id="coins_${u._id}" value="${u.progress.coins}" style="width:80px;"/></td>
+      <td><input type="number" id="gems_${u._id}" value="${u.progress.gems}" style="width:70px;"/></td>
       <td><input type="number" id="xp_${u._id}" value="${u.progress.xp}" style="width:80px;"/></td>
       <td><input type="number" id="level_${u._id}" value="${u.progress.level}" style="width:60px;"/></td>
-      <td>${u.banned ? `<span style="color:var(--danger,#e05252);">🚫 Gesperrt</span>` : `<span style="color:var(--success);">✅ Aktiv</span>`}</td>
+      <td>${u.banned ? `<span style="color:#e05252;">🚫 Gesperrt</span>` : `<span style="color:var(--success);">✅ Aktiv</span>`}</td>
       <td style="display:flex; gap:6px; flex-wrap:wrap; padding:10px;">
-        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminEditStats('${u._id}', document.getElementById('coins_${u._id}').value, document.getElementById('xp_${u._id}').value, document.getElementById('level_${u._id}').value)">💾 Speichern</button>
+        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminEditStats('${u._id}', document.getElementById('coins_${u._id}').value, document.getElementById('xp_${u._id}').value, document.getElementById('level_${u._id}').value, document.getElementById('gems_${u._id}').value)">💾</button>
+        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminWarnUser('${u._id}')">⚠️ Verwarnen</button>
+        ${u.warnings && u.warnings.length ? `<button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminClearWarnings('${u._id}')">Warns löschen</button>`:""}
+        ${u.flagged ? `<button class="btn btn-secondary" style="padding:6px 10px; color:#e0a020;" onclick="adminClearFlag('${u._id}')">🚩 Entwarnen</button>`:""}
         <button class="btn btn-secondary" style="padding:6px 10px;" ${isSelf?"disabled":""} onclick="adminSetBanned('${u._id}', ${!u.banned})">${u.banned?"Entsperren":"Sperren"}</button>
         <button class="btn btn-secondary" style="padding:6px 10px; color:#e05252;" ${isSelf?"disabled":""} onclick="adminDeleteUser('${u._id}', '${escapeHtml(u.username)}')">🗑️</button>
       </td>
@@ -316,6 +448,21 @@ function renderAdmin(){
         onchange="adminTogglePermission('${u._id}', '${perm}', this.checked)"/></td>`;
     });
     html += `</tr>`;
+  });
+  return html+`</table></div>`;
+}
+function renderAdminActivity(){
+  if (!state.adminActivity){ return `<div class="body-text">Lade Aktivität...</div>`; }
+  const ICONS = {register:"🆕",login:"🔑",ban:"🚫",unban:"✅",warn:"⚠️",role_change:"🛡️",shop_purchase:"🛒",casino_bet:"🎰",cheat_flag:"🚩",friend_request:"👥",friend_accept:"🤝"};
+  let html = `<div class="body-text" style="margin-bottom:14px;">Die letzten 200 Ereignisse serverweit (Logins, Käufe, Verwarnungen, Casino-Wetten, Cheat-Flags ...).</div>
+  <div class="card" style="padding:0;"><table class="lb">
+    <tr><th style="text-align:left; padding:10px;">Zeit</th><th style="text-align:left;">Nutzer</th><th style="text-align:left;">Ereignis</th><th style="text-align:left;">Details</th></tr>`;
+  state.adminActivity.forEach(log=>{
+    const time = new Date(log.createdAt).toLocaleString('de-DE');
+    html += `<tr><td style="padding:8px 10px; white-space:nowrap;" class="muted">${time}</td>
+      <td><b>${escapeHtml(log.username||"?")}</b></td>
+      <td>${ICONS[log.type]||"•"} ${log.type}</td>
+      <td class="muted">${escapeHtml(JSON.stringify(log.meta||{}))}</td></tr>`;
   });
   return html+`</table></div>`;
 }
@@ -340,6 +487,7 @@ function renderProfile(){
       <div class="quick-grid" style="grid-template-columns:repeat(2,1fr);">
         <div><div class="muted">LEVEL</div><div style="font-size:20px; font-weight:700;">${p.level}</div></div>
         <div><div class="muted">COINS</div><div style="font-size:20px; font-weight:700; color:var(--coin);">${p.coins}</div></div>
+        <div><div class="muted">GEMS</div><div style="font-size:20px; font-weight:700; color:#7fd8f5;">${p.gems}</div></div>
         <div><div class="muted">LERNSERIE</div><div style="font-size:20px; font-weight:700; color:var(--warning);">${p.streak} Tage</div></div>
         <div><div class="muted">LEKTIONEN</div><div style="font-size:20px; font-weight:700;">${p.completedLessons.length}/${LESSONS.length}</div></div>
         <div><div class="muted">GELÖSTE AUFGABEN</div><div style="font-size:20px; font-weight:700;">${p.totalSolved}</div></div>
@@ -392,7 +540,9 @@ function render(){
     case "exercises": inner = renderPractice(); break;
     case "achievements": inner = renderAchievements(); break;
     case "arcade": inner = renderArcade(); break;
+    case "casino": inner = renderCasino(); break;
     case "shop": inner = renderShop(); break;
+    case "friends": inner = renderFriends(); break;
     case "leaderboard": inner = renderLeaderboard(); break;
     case "profile": inner = renderProfile(); break;
     case "settings": inner = renderSettings(); break;
