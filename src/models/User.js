@@ -79,10 +79,15 @@ const UserSchema = new mongoose.Schema(
     permissions: { type: [String], default: [] },
     banned: { type: Boolean, default: false },
     banReason: { type: String, default: "" },
+    bannedUntil: { type: Date, default: null }, // null = dauerhaft gesperrt (falls banned=true)
     warnings: { type: [WarningSchema], default: [] },
     avatar: { type: String, default: "🧑‍💻" },
     profilePicture: { type: String, default: null }, // Base64-Data-URI, serverseitig geprüft (Größe/Format)
+    bannerImage: { type: String, default: null },     // Profil-Banner: Base64-Data-URI ODER Template-ID (siehe bannerColor)
+    bannerColor: { type: String, default: "#ff7a1a" }, // Hex-Farbe für Farbverlauf-Banner (Color-Picker)
     bio: { type: String, default: "", maxlength: 160 },
+    onboarded: { type: Boolean, default: false },   // Pflicht-Profil-Setup nach Registrierung abgeschlossen?
+    tutorialSeen: { type: Boolean, default: false }, // Einführungs-Tour schon gesehen?
     ownedAvatars: { type: [String], default: [] }, // im Shop gekaufte Premium-Avatare
 
     // ---- Abo-System (kostet Gems, keine echten Zahlungen) ----
@@ -92,6 +97,11 @@ const UserSchema = new mongoose.Schema(
     },
     progress: { type: ProgressSchema, default: () => ({}) },
     lastLoginAt: { type: Date, default: null },
+
+    // ---- Ban-Evasion-Schutz ----
+    registrationIp: { type: String, default: null },
+    lastLoginIp: { type: String, default: null },
+    bannedIps: { type: [String], default: [] }, // IPs, die zum Zeitpunkt der Sperre bekannt waren
 
     // ---- Anti-Cheat / Sicherheit ----
     lastSyncAt: { type: Date, default: null },

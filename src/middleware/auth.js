@@ -24,7 +24,14 @@ const requireAuth = asyncHandler(async (req, res, next) => {
     res.clearCookie(config.cookieName);
     throw new ApiError(401, "Nutzer existiert nicht mehr.");
   }
-  if (user.banned) throw new ApiError(403, "Dieses Konto wurde gesperrt.");
+  if (user.banned) {
+    if (user.bannedUntil && new Date(user.bannedUntil) <= new Date()) {
+      user.banned = false; user.banReason = ""; user.bannedUntil = null; user.bannedIps = [];
+      await user.save();
+    } else {
+      throw new ApiError(403, "Dieses Konto wurde gesperrt.");
+    }
+  }
 
   req.user = user;
   next();
@@ -45,17 +52,14 @@ const optionalAuth = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// Prüft eine konkrete Permission. Admins dürfen immer alles.
-// Nutzt sowohl die Rollen-Standardrechte als auch individuell vergebene Permissions.
+// Prüft eine konkrete Permission anhand des RANGS (nicht mehr individuell
+// pro Nutzer vergebbar — nur noch admin/moderator/user, siehe config/permissions.js).
 function authorize(permission) {
   return (req, res, next) => {
     if (!req.user) throw new ApiError(401, "Nicht angemeldet.");
-    const { role, permissions } = req.user;
-    if (role === "admin") return next();
-    const roleGrants = ROLE_DEFAULTS[role] || [];
-    if (roleGrants.includes(permission) || permissions.includes(permission)) {
-      return next();
-    }
+    if (req.user.role === "admin") return next();
+    const roleGrants = ROLE_DEFAULTS[req.user.role] || [];
+    if (roleGrants.includes(permission)) return next();
     throw new ApiError(403, "Keine Berechtigung für diese Aktion.");
   };
 }

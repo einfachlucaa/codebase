@@ -1,5 +1,6 @@
 /* ---------- STATE ---------- */
 let state = {
+  modal: null,         // {kind:'alert'|'confirm'|'prompt', title, message, value, resolve}
   users: {},          // username -> {id, avatar, createdAt, role, permissions, ownedAvatars, progress:{...}}
   currentUser: null,
   page: "dashboard",
@@ -8,6 +9,7 @@ let state = {
   lessonInstances: [],
   practiceInstances: [],
   arcadeGame: null,   // null | 'bubble' | 'tap' | 'memory' | 'quizrush'
+  gamesTab: "arcade", // aktiver Tab im Spiele-Hub: arcade | cookie | factory | casino
   bubble: null,
   tap: null,
   memory: null,
@@ -15,17 +17,24 @@ let state = {
   authError: "",
   authMode: "login",
   authBusy: false,
+  wasBannedUsername: null, // gefüllt, wenn Login wegen Sperre fehlschlug -> zeigt Entsperrungs-Formular
   booting: true,      // true bis /api/auth/me einmal geprüft wurde
+  tutorialStep: 0,
+  showTutorial: false,
   leaderboardRows: null,
   leaderboardSort: "xp",
   shop: null,          // {items, owned, coins}
   adminUsers: null,
   adminQuery: "",
   adminActivity: null,
-  adminTab: "users",   // "users" | "activity"
+  adminActivityFilter: null, // Username-Filter für den Aktivitäts-Tab
+  adminTab: "users",   // "users" | "activity" | "unban"
+  adminEditingUser: null, // aktuell im Vollbild-Editor geöffneter Nutzer
+  adminUnbanRequests: null,
   soundOn: true,
   casinoBusy: false,
   casinoResult: null,  // letztes Casino-Ergebnis (für Animation/Anzeige)
+  casinoSpinFrame: null, // aktuell angezeigte Zufallssymbole während des Slot-Spins
   friendsData: null,   // {friends, incoming, outgoing}
   friendSearchResults: [],
   cookieState: null,

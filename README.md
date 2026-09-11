@@ -1,4 +1,4 @@
-# 🎓 C# Quest
+# CodeBase
 
 Spielerische C#-Lernplattform mit Lektionen, Übungen, 4 Arcade-Minispielen,
 Coin-Wirtschaft, Leaderboard und Admin-Panel. Läuft komplett lokal über

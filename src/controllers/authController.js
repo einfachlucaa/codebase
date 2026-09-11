@@ -1,5 +1,6 @@
 const config = require("../../config/config");
 const User = require("../models/User");
+const UnbanRequest = require("../models/UnbanRequest");
 const ApiError = require("../utils/ApiError");
 const asyncHandler = require("../utils/asyncHandler");
 const { signToken } = require("../utils/jwt");
@@ -19,6 +20,7 @@ function sendAuthCookie(res, userId) {
 
 const register = asyncHandler(async (req, res) => {
   const { username, password } = req.body;
+  const ip = req.ip;
 
   if (!username || typeof username !== "string" || username.trim().length < 3) {
     throw new ApiError(400, "Der Nutzername muss mindestens 3 Zeichen haben.");
@@ -33,16 +35,32 @@ const register = asyncHandler(async (req, res) => {
   const existing = await User.findOne({ username: username.trim() });
   if (existing) throw new ApiError(409, "Dieser Nutzername ist bereits vergeben.");
 
+  // Ban-Evasion-Schutz: kommt die Registrierung von derselben IP wie ein
+  // aktuell gesperrter Account, wird sie abgelehnt. HINWEIS: das ist kein
+  // hundertprozentiger Schutz (geteilte Schul-/WLAN-IPs, VPNs), aber blockt
+  // den häufigsten Fall (einfach neu registrieren) zuverlässig ab.
+  if (ip) {
+    const bannedMatch = await User.findOne({ banned: true, bannedIps: ip });
+    if (bannedMatch) {
+      throw new ApiError(
+        403,
+        "Von diesem Gerät/Netzwerk aus wurde bereits ein Konto gesperrt. Neuregistrierung ist deshalb nicht möglich — du kannst stattdessen auf der Login-Seite eine Entsperrung für dein altes Konto beantragen."
+      );
+    }
+  }
+
   const AVATARS = ["🧑‍💻", "👩‍💻", "🧑‍🚀", "🦊", "🐱", "🐼", "🐧", "🦄", "🐸", "🤖", "🐨", "🦁"];
   const user = new User({
     username: username.trim(),
     avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)],
+    registrationIp: ip || null,
+    lastLoginIp: ip || null,
   });
   await user.setPassword(password);
   await user.save();
 
   sendAuthCookie(res, user._id);
-  logActivity(user, "register");
+  logActivity(user, "register", { ip });
   res.status(201).json({ user });
 });
 
@@ -53,16 +71,28 @@ const login = asyncHandler(async (req, res) => {
   // .select("+passwordHash") nötig, da das Feld im Model auf select:false steht.
   const user = await User.findOne({ username: username.trim() }).select("+passwordHash");
   if (!user) throw new ApiError(401, "Falscher Nutzername oder falsches Passwort.");
-  if (user.banned) throw new ApiError(403, `Dieses Konto wurde gesperrt.${user.banReason ? " Grund: " + user.banReason : ""}`);
 
   const ok = await user.comparePassword(password);
   if (!ok) throw new ApiError(401, "Falscher Nutzername oder falsches Passwort.");
 
+  // Passwort-Check bewusst VOR der Ban-Prüfung, damit man ohne korrektes
+  // Passwort nicht herausfinden kann, ob ein bestimmter Account gesperrt ist.
+  if (user.banned) {
+    // Zeitlich befristete Sperre abgelaufen? -> automatisch entsperren.
+    if (user.bannedUntil && new Date(user.bannedUntil) <= new Date()) {
+      user.banned = false; user.banReason = ""; user.bannedUntil = null; user.bannedIps = [];
+    } else {
+      const untilText = user.bannedUntil ? ` (bis ${new Date(user.bannedUntil).toLocaleString("de-DE")})` : "";
+      throw new ApiError(403, `Dieses Konto wurde gesperrt${untilText}.${user.banReason ? " Grund: " + user.banReason : ""}`);
+    }
+  }
+
   user.lastLoginAt = new Date();
+  if (req.ip) user.lastLoginIp = req.ip;
   await user.save();
 
   sendAuthCookie(res, user._id);
-  logActivity(user, "login");
+  logActivity(user, "login", { ip: req.ip });
   res.json({ user });
 });
 
@@ -75,4 +105,22 @@ const me = asyncHandler(async (req, res) => {
   res.json({ user: req.user });
 });
 
-module.exports = { register, login, logout, me };
+// Öffentlicher Endpunkt (kein Login nötig, gesperrte Nutzer können sich ja
+// nicht einloggen): Entsperrung mit Begründung beantragen.
+const requestUnban = asyncHandler(async (req, res) => {
+  const { username, reason } = req.body;
+  if (!username || !reason || !reason.trim()) {
+    throw new ApiError(400, "Nutzername und Begründung sind erforderlich.");
+  }
+  const user = await User.findOne({ username: username.trim() });
+  if (!user || !user.banned) {
+    throw new ApiError(404, "Kein gesperrtes Konto mit diesem Nutzernamen gefunden.");
+  }
+  const existingPending = await UnbanRequest.findOne({ user: user._id, status: "pending" });
+  if (existingPending) throw new ApiError(409, "Für dieses Konto läuft bereits eine Entsperrungs-Anfrage.");
+
+  await UnbanRequest.create({ user: user._id, username: user.username, reason: reason.trim().slice(0, 500) });
+  res.status(201).json({ ok: true });
+});
+
+module.exports = { register, login, logout, me, requestUnban };

@@ -13,6 +13,11 @@ async function main() {
 
   const app = express();
 
+  // Render (und die meisten Hoster) laufen hinter einem Reverse-Proxy.
+  // Ohne "trust proxy" würde req.ip immer die interne Proxy-IP liefern,
+  // wodurch die Ban-Evasion-Erkennung (siehe authController) nutzlos wäre.
+  app.set("trust proxy", 1);
+
   // Grundlegende Security-Header. CSP wird deaktiviert, weil das Frontend
   // aktuell mit Inline-Event-Handlern (onclick="...") arbeitet; für mehr
   // Sicherheit wäre eine Umstellung auf addEventListener + eigene CSP sinnvoll.

@@ -1,7 +1,7 @@
 {
   "name": "csharp-quest",
   "version": "1.0.0",
-  "description": "C# Quest - Lernplattform mit MongoDB-Backend, Accounts, Rollen/Permissions, Admin-Panel und Arcade-Minispielen",
+  "description": "CodeBase - Lern- & Spieleplattform mit MongoDB-Backend, Accounts, Rollen/Permissions, Admin-Panel, Arcade, Casino und Idle-Games",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

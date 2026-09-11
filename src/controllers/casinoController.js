@@ -44,8 +44,9 @@ const coinflip = asyncHandler(async (req, res) => {
 });
 
 // Einfacher 3-Walzen-Slot mit festen Gewinnchancen/Multiplikatoren.
-const SYMBOLS = ["🍒", "🍋", "🔔", "⭐", "💎"];
-const PAYOUTS = { "🍒": 2, "🍋": 3, "🔔": 5, "⭐": 10, "💎": 25 };
+// Symbol-IDs müssen zu den SVG-Icons im Frontend (public/js/pages.js: casinoIcon) passen.
+const SYMBOLS = ["cherry", "lemon", "bell", "star", "diamond"];
+const PAYOUTS = { cherry: 2, lemon: 3, bell: 5, star: 10, diamond: 25 };
 
 const slots = asyncHandler(async (req, res) => {
   const user = req.user;
@@ -68,4 +69,31 @@ const slots = asyncHandler(async (req, res) => {
   res.json({ reels, payout, coins: user.progress.coins });
 });
 
-module.exports = { coinflip, slots, MIN_BET, MAX_BET };
+// Higher/Lower: eine Karte (1-13) ist vorgegeben, Tipp ob die zweite höher
+// oder niedriger ist. Bei Gleichstand wird neu gezogen (kein Unentschieden).
+const RANK_NAMES = { 1:"A", 11:"B", 12:"D", 13:"K" };
+function rankLabel(n){ return RANK_NAMES[n] || String(n); }
+
+const higherLower = asyncHandler(async (req, res) => {
+  const user = req.user;
+  checkCooldown(user);
+  const bet = validateBet(user, req.body.bet);
+  const guess = req.body.guess === "lower" ? "lower" : "higher";
+
+  const card1 = 1 + Math.floor(Math.random() * 13);
+  let card2 = 1 + Math.floor(Math.random() * 13);
+  while (card2 === card1) card2 = 1 + Math.floor(Math.random() * 13); // kein Unentschieden
+
+  const actuallyHigher = card2 > card1 ? "higher" : "lower";
+  const win = actuallyHigher === guess;
+  const payout = win ? Math.floor(bet * 1.9) : 0;
+
+  user.progress.coins += (payout - bet);
+  user.markModified("progress");
+  await user.save();
+  logActivity(user, "casino_bet", { game: "higherlower", bet, win, payout, card1, card2 });
+
+  res.json({ card1, card1Label: rankLabel(card1), card2, card2Label: rankLabel(card2), win, payout, coins: user.progress.coins });
+});
+
+module.exports = { coinflip, slots, higherLower, MIN_BET, MAX_BET };

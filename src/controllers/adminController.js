@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const ActivityLog = require("../models/ActivityLog");
 const Message = require("../models/Message");
+const UnbanRequest = require("../models/UnbanRequest");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const logActivity = require("../utils/logActivity");
@@ -45,15 +46,7 @@ const setRole = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
-const setPermissions = asyncHandler(async (req, res) => {
-  const { permissions } = req.body;
-  if (!Array.isArray(permissions) || !permissions.every((p) => Object.values(PERMISSIONS).includes(p))) {
-    throw new ApiError(400, "Ungültige Permission-Liste.");
-  }
-  const user = await User.findByIdAndUpdate(req.params.id, { permissions }, { new: true });
-  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
-  res.json({ user });
-});
+
 
 // Verwarnung erteilen. Nach AUTO_BAN_AFTER_WARNINGS aktiven Verwarnungen
 // wird der Account automatisch gesperrt (kein manueller Extra-Schritt nötig).
@@ -70,6 +63,8 @@ const warnUser = asyncHandler(async (req, res) => {
   if (user.warnings.length >= AUTO_BAN_AFTER_WARNINGS && !user.banned) {
     user.banned = true;
     user.banReason = `Automatisch gesperrt nach ${user.warnings.length} Verwarnungen.`;
+    const ips = [user.registrationIp, user.lastLoginIp].filter(Boolean);
+    user.bannedIps = [...new Set([...user.bannedIps, ...ips])];
     autoBanned = true;
   }
   await user.save();
@@ -120,19 +115,91 @@ const resetPicture = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
+// Vollständiges Bearbeiten eines einzelnen Nutzers aus dem Admin-Panel heraus
+// (ein Speichern-Klick für alle gängigen Felder statt vieler Einzel-Requests).
+const fullUpdate = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  const isSelf = String(req.user._id) === req.params.id;
+  const b = req.body;
+
+  if (b.coins !== undefined) user.progress.coins = Math.max(0, Number(b.coins));
+  if (b.gems !== undefined) user.progress.gems = Math.max(0, Number(b.gems));
+  if (b.xp !== undefined) user.progress.xp = Math.max(0, Number(b.xp));
+  if (b.level !== undefined) user.progress.level = Math.max(1, Number(b.level));
+  if (b.avatar !== undefined) user.avatar = String(b.avatar).slice(0, 8);
+  if (b.bio !== undefined) user.bio = String(b.bio).slice(0, 160);
+  if (b.role !== undefined && ROLES.includes(b.role) && !(isSelf && b.role !== "admin")) user.role = b.role;
+  if (b.subscriptionTier !== undefined && ["free", "basic", "pro"].includes(b.subscriptionTier)) {
+    user.subscription.tier = b.subscriptionTier;
+    if (b.subscriptionTier === "free") user.subscription.expiresAt = null;
+  }
+  if (b.banned !== undefined && !isSelf) {
+    user.banned = !!b.banned;
+    user.banReason = b.banned ? (b.banReason || user.banReason || "") : "";
+    user.bannedUntil = b.banned && b.banDurationHours ? new Date(Date.now() + Number(b.banDurationHours) * 60 * 60 * 1000) : null;
+    if (b.banned) {
+      const ips = [user.registrationIp, user.lastLoginIp].filter(Boolean);
+      user.bannedIps = [...new Set([...user.bannedIps, ...ips])];
+    } else {
+      user.bannedIps = [];
+    }
+  }
+
+  user.markModified("progress");
+  await user.save();
+  logActivity(req.user, "role_change", { targetUser: user.username, action: "full_edit" });
+  res.json({ user });
+});
+
+/* ---------- ENTSPERRUNGS-ANFRAGEN ---------- */
+const listUnbanRequests = asyncHandler(async (req, res) => {
+  const requests = await UnbanRequest.find({ status: "pending" }).sort({ createdAt: -1 }).lean();
+  res.json({ requests });
+});
+
+const reviewUnbanRequest = asyncHandler(async (req, res) => {
+  const { approve } = req.body;
+  const reqDoc = await UnbanRequest.findById(req.params.id);
+  if (!reqDoc || reqDoc.status !== "pending") throw new ApiError(404, "Anfrage nicht gefunden oder bereits bearbeitet.");
+
+  reqDoc.status = approve ? "approved" : "denied";
+  reqDoc.reviewedBy = req.user.username;
+  reqDoc.reviewedAt = new Date();
+  await reqDoc.save();
+
+  if (approve) {
+    const user = await User.findById(reqDoc.user);
+    if (user) {
+      user.banned = false; user.banReason = ""; user.bannedIps = []; user.warnings = [];
+      await user.save();
+      logActivity(req.user, "unban", { targetUser: user.username, viaRequest: true });
+    }
+  }
+  res.json({ ok: true });
+});
+
 const setBanned = asyncHandler(async (req, res) => {
-  const { banned, reason } = req.body;
+  const { banned, reason, durationHours } = req.body;
   if (String(req.user._id) === req.params.id) {
     throw new ApiError(400, "Du kannst dich nicht selbst sperren.");
   }
-  const user = await User.findByIdAndUpdate(
-    req.params.id,
-    { banned: !!banned, banReason: banned ? reason || "" : "" },
-    { new: true }
-  );
-  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
-  logActivity(req.user, banned ? "ban" : "unban", { targetUser: user.username, reason });
-  res.json({ user });
+  const target = await User.findById(req.params.id);
+  if (!target) throw new ApiError(404, "Nutzer nicht gefunden.");
+
+  target.banned = !!banned;
+  target.banReason = banned ? reason || "" : "";
+  target.bannedUntil = banned && durationHours ? new Date(Date.now() + Number(durationHours) * 60 * 60 * 1000) : null;
+  if (banned) {
+    // Bekannte IPs merken, damit eine Neuregistrierung von dort blockiert wird.
+    const ips = [target.registrationIp, target.lastLoginIp].filter(Boolean);
+    target.bannedIps = [...new Set([...target.bannedIps, ...ips])];
+  } else {
+    target.bannedIps = []; // Entsperrung hebt auch die IP-Blockade auf
+  }
+  await target.save();
+  logActivity(req.user, banned ? "ban" : "unban", { targetUser: target.username, reason, durationHours });
+  res.json({ user: target });
 });
 
 const deleteUser = asyncHandler(async (req, res) => {
@@ -160,6 +227,7 @@ const stats = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  listUsers, getUser, editStats, setRole, setPermissions, setBanned, deleteUser, stats,
+  listUsers, getUser, editStats, setRole, setBanned, deleteUser, stats,
   warnUser, clearWarnings, clearFlag, listActivity, listUserMessages, resetPicture,
+  fullUpdate, listUnbanRequests, reviewUnbanRequest,
 };

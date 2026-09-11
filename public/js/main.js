@@ -1,18 +1,23 @@
 /* ---------- NAVIGATION ---------- */
 function goto(page){
-  if (page==="admin" && !isAdminUser()) return; // Guard: kein Zugriff ohne Berechtigung
+  if (page==="admin" && !isAdminUser() && !hasPermission("users.view")) return; // Guard: kein Zugriff ohne Berechtigung
   state.page = page;
   if (page==="learning"){ state.lessonId=null; }
   if (page==="exercises"){ loadPractice(); }
-  if (page!=="arcade"){ exitArcadeTimers(); state.arcadeGame=null; }
+  if (page!=="games" && !["arcade","cookie","factory","casino"].includes(page)){ exitArcadeTimers(); state.arcadeGame=null; }
   render();
   if (page==="leaderboard") loadLeaderboard();
   if (page==="shop") loadShop();
   if (page==="friends") { loadFriends(); loadUnreadCounts(); }
-  if (page==="cookie") loadCookieState();
-  if (page==="factory") loadFactoryState();
+  if (page==="games") switchGamesTab(state.gamesTab||"arcade");
   if (page==="subscription") loadSubscription();
   if (page==="admin") loadAdminUsers();
+}
+function switchGamesTab(tab){
+  state.gamesTab = tab; state.page="games"; state.arcadeGame=null; exitArcadeTimers();
+  render();
+  if (tab==="cookie") loadCookieState();
+  if (tab==="factory") loadFactoryState();
 }
 function exitArcadeTimers(){
   stopTapTimer();
@@ -42,11 +47,17 @@ function isAdminUser(){
   const u = state.users[state.currentUser];
   return !!u && u.role === "admin";
 }
+// Rollen -> Rechte, muss zu src/config/permissions.js (ROLE_DEFAULTS) passen.
+const ROLE_DEFAULTS_CLIENT = {
+  user: [],
+  moderator: ["users.view","users.warn","users.ban","activity.view","messages.view"],
+  admin: ["users.view","users.edit","users.ban","users.warn","users.delete","users.roles","activity.view","messages.view"],
+};
 function hasPermission(perm){
   const u = state.users[state.currentUser];
   if (!u) return false;
   if (u.role === "admin") return true;
-  return (u.permissions||[]).includes(perm);
+  return (ROLE_DEFAULTS_CLIENT[u.role]||[]).includes(perm);
 }
 
 /* ---------- SERVER-USER -> LOKALER STATE ---------- */
@@ -55,7 +66,11 @@ function hydrateUser(serverUser){
     id: serverUser._id,
     avatar: serverUser.avatar,
     profilePicture: serverUser.profilePicture || null,
+    bannerImage: serverUser.bannerImage || null,
+    bannerColor: serverUser.bannerColor || "#ff7a1a",
     bio: serverUser.bio || "",
+    onboarded: !!serverUser.onboarded,
+    tutorialSeen: !!serverUser.tutorialSeen,
     createdAt: serverUser.createdAt,
     role: serverUser.role,
     permissions: serverUser.permissions || [],
@@ -71,16 +86,26 @@ function hydrateUser(serverUser){
 /* ---------- AUTH ---------- */
 async function doLogin(username, password){
   if (state.authBusy) return;
-  state.authBusy = true; state.authError=""; render();
+  state.authBusy = true; state.authError=""; state.wasBannedUsername=null; render();
   try{
     const { user } = await apiPost("/auth/login", { username:(username||"").trim(), password });
     hydrateUser(user);
-    goto("dashboard");
+    enterApp();
   } catch(err){
     state.authError = err.message;
+    if (err.status===403) state.wasBannedUsername = (username||"").trim(); // zeigt "Entsperrung beantragen"-Option
   } finally {
     state.authBusy = false; render();
   }
+}
+async function submitUnbanRequest(username, reason){
+  if (!reason || !reason.trim()){ await customAlert("Bitte gib einen Grund an."); return; }
+  try{
+    await apiPost("/auth/unban-request", { username, reason: reason.trim() });
+    state.wasBannedUsername = null;
+    await customAlert("Deine Entsperrungs-Anfrage wurde übermittelt. Ein Admin prüft sie.", "Anfrage gesendet");
+    render();
+  } catch(err){ await customAlert(err.message); }
 }
 async function doRegister(username, password, passwordConfirm){
   if (state.authBusy) return;
@@ -91,7 +116,7 @@ async function doRegister(username, password, passwordConfirm){
   try{
     const { user } = await apiPost("/auth/register", { username:(username||"").trim(), password });
     hydrateUser(user);
-    goto("dashboard");
+    enterApp();
   } catch(err){
     state.authError = err.message;
   } finally {
@@ -135,6 +160,8 @@ async function bootstrap(){
   try{
     const { user } = await apiGet("/auth/me");
     hydrateUser(user);
+    if (!user.onboarded) state.page = "onboarding";
+    else if (!user.tutorialSeen) { state.tutorialStep = 0; state.showTutorial = true; }
   } catch { /* nicht eingeloggt -> Login-Screen */ }
   state.booting = false;
   render();
@@ -161,7 +188,7 @@ async function buyShopAvatar(avatar){
     const { user } = await apiPost("/shop/buy-avatar", { avatar });
     hydrateUser(user);
     await loadShop();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 
 /* ---------- SOUND-TOGGLE ---------- */
@@ -176,18 +203,44 @@ async function playCasinoCoinflip(bet, choice){
     state.users[state.currentUser].progress.coins = res.coins;
     state.casinoResult = { game:"coinflip", ...res };
     playSound(res.win ? "win" : "lose");
-  } catch(err){ alert(err.message); }
+  } catch(err){ await customAlert(err.message); }
   finally{ state.casinoBusy = false; render(); }
 }
-async function playCasinoSlots(bet){
+async function pullSlotLever(){
   if (state.casinoBusy) return;
+  const betInput = document.getElementById("slBet");
+  const bet = betInput ? betInput.value : 20;
   state.casinoBusy = true; state.casinoResult = null; render();
+
+  // Während der Anfrage rasch durch zufällige Symbole "spinnen" lassen —
+  // rein optisch, das tatsächliche Ergebnis kommt weiterhin vom Server.
+  const SYMS = ["cherry","lemon","bell","star","diamond"];
+  const randomFrame = ()=> [0,0,0].map(()=>SYMS[Math.floor(Math.random()*SYMS.length)]);
+  state.casinoSpinFrame = randomFrame(); render();
+  const spinTimer = setInterval(()=>{ state.casinoSpinFrame = randomFrame(); render(); }, 90);
+
   try{
-    const res = await apiPost("/casino/slots", { bet });
+    const [res] = await Promise.all([
+      apiPost("/casino/slots", { bet }),
+      new Promise(r=>setTimeout(r, 650)), // Mindest-Spin-Dauer, damit die Animation nicht "blinzelt"
+    ]);
     state.users[state.currentUser].progress.coins = res.coins;
     state.casinoResult = { game:"slots", ...res };
     playSound(res.payout>0 ? "win" : "lose");
-  } catch(err){ alert(err.message); }
+  } catch(err){ await customAlert(err.message); }
+  finally{ clearInterval(spinTimer); state.casinoBusy = false; render(); }
+}
+async function playHigherLower(guess){
+  if (state.casinoBusy) return;
+  const betInput = document.getElementById("hlBet");
+  const bet = betInput ? betInput.value : 20;
+  state.casinoBusy = true; state.casinoResult = null; render();
+  try{
+    const res = await apiPost("/casino/higherlower", { bet, guess });
+    state.users[state.currentUser].progress.coins = res.coins;
+    state.casinoResult = { game:"higherlower", guess, ...res };
+    playSound(res.win ? "win" : "lose");
+  } catch(err){ await customAlert(err.message); }
   finally{ state.casinoBusy = false; render(); }
 }
 
@@ -205,16 +258,16 @@ async function searchFriendUsers(q){
 }
 async function sendFriendRequest(id){
   try{ await apiPost(`/friends/request/${id}`); playSound("notify"); await loadFriends(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 async function respondFriendRequest(id, accept){
   try{ await apiPost(`/friends/respond/${id}`, { accept }); await loadFriends(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 async function removeFriendUser(id){
-  if (!confirm("Diese Freundschaft wirklich beenden?")) return;
+  if (!(await customConfirm("Diese Freundschaft wirklich beenden?"))) return;
   try{ await apiDelete(`/friends/${id}`); await loadFriends(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 
 /* ---------- COOKIE CLICKER ---------- */
@@ -249,7 +302,7 @@ async function buyCookieUpgrade(upgradeId){
     await apiPost("/idle/cookie/upgrade", { upgradeId });
     playSound("coin");
     await loadCookieState();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 
 /* ---------- FACTORY (Idle) ---------- */
@@ -264,14 +317,14 @@ async function collectFactory(){
     state.users[state.currentUser].progress.coins = res.coins;
     if (res.earned>0) playSound("coin");
     await loadFactoryState();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 async function buyFactoryGenerator(generatorId){
   try{
     await apiPost("/idle/factory/upgrade", { generatorId });
     playSound("coin");
     await loadFactoryState();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 
 /* ---------- ABO-SYSTEM ---------- */
@@ -281,13 +334,13 @@ async function loadSubscription(){
   render();
 }
 async function buySubscriptionTier(tier){
-  if (!confirm(`Bist du sicher? Das Abo wird sofort mit Gems bezahlt.`)) return;
+  if (!(await customConfirm(`Bist du sicher? Das Abo wird sofort mit Gems bezahlt.`))) return;
   try{
     const { user } = await apiPost("/subscription/buy", { tier });
     hydrateUser(user);
     playSound("win");
     await loadSubscription();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 
 /* ---------- CHAT (nur Text + Sticker, nur zwischen Freunden) ---------- */
@@ -314,7 +367,7 @@ async function loadChatMessages(){
     const {messages} = await apiGet(`/messages/${state.activeChatWith.id}`);
     state.chatMessages = messages;
     await loadUnreadCounts();
-  } catch(err){ alert(err.message); state.activeChatWith=null; }
+  } catch(err){ customAlert(err.message); state.activeChatWith=null; }
   render();
 }
 async function sendChatMessage(text, stickerId){
@@ -324,7 +377,7 @@ async function sendChatMessage(text, stickerId){
     await apiPost(`/messages/${state.activeChatWith.id}`, { text, sticker: stickerId||null });
     playSound("notify");
     await loadChatMessages();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 function closeChat(){ state.activeChatWith = null; render(); }
 
@@ -332,24 +385,24 @@ function closeChat(){ state.activeChatWith = null; render(); }
 function uploadProfilePicture(input){
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 350*1024){ alert("Bild ist zu groß (max. 350KB)."); return; }
+  if (file.size > 350*1024){ customAlert("Bild ist zu groß (max. 350KB)."); return; }
   const reader = new FileReader();
   reader.onload = async (e)=>{
     try{
       const { user } = await apiPatch("/progress/profile", { picture: e.target.result });
       hydrateUser(user);
       render();
-    } catch(err){ alert(err.message); }
+    } catch(err){ customAlert(err.message); }
   };
   reader.readAsDataURL(file);
 }
 async function removeProfilePicture(){
   try{ const { user } = await apiPatch("/progress/profile", { picture: null }); hydrateUser(user); render(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 async function saveBio(text){
   try{ const { user } = await apiPatch("/progress/profile", { bio: text }); hydrateUser(user); render(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 
 /* ---------- ADMIN: MODERATION ---------- */
@@ -357,12 +410,92 @@ async function adminViewMessages(id, username){
   try{
     const { messages } = await apiGet(`/admin/users/${id}/messages`);
     let text = messages.length ? messages.map(m=>`[${new Date(m.createdAt).toLocaleString('de-DE')}] ${m.fromUsername} -> ${m.toUsername}: ${m.text||''} ${m.sticker?'('+m.sticker+')':''}`).join("\n") : "Keine Nachrichten.";
-    alert(`Nachrichten von ${username}:\n\n${text}`);
-  } catch(err){ alert(err.message); }
+    customAlert(`Nachrichten von ${username}:\n\n${text}`);
+  } catch(err){ customAlert(err.message); }
 }
 async function adminResetPicture(id){
   try{ await apiPatch(`/admin/users/${id}/reset-picture`, {}); await loadAdminUsers(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
+}
+
+/* ---------- APP-EINSTIEG NACH LOGIN/REGISTER: Pflicht-Onboarding + Tutorial ---------- */
+function enterApp(){
+  const u = state.users[state.currentUser];
+  if (!u.onboarded){ state.page = "onboarding"; render(); return; }
+  goto("dashboard");
+  if (!u.tutorialSeen){ state.tutorialStep = 0; state.showTutorial = true; }
+  render();
+}
+const BANNER_TEMPLATES = [
+  { id:"tpl-sunset", label:"Sonnenuntergang", css:"linear-gradient(120deg,#ff7a1a,#ff375f)" },
+  { id:"tpl-ocean", label:"Ozean", css:"linear-gradient(120deg,#0a84ff,#64d2ff)" },
+  { id:"tpl-forest", label:"Wald", css:"linear-gradient(120deg,#1c6b3a,#30d158)" },
+  { id:"tpl-royal", label:"Royal", css:"linear-gradient(120deg,#5e5ce6,#ff375f)" },
+  { id:"tpl-mono", label:"Mono", css:"linear-gradient(120deg,#2c2c2e,#1c1c1e)" },
+  { id:"tpl-gold", label:"Gold", css:"linear-gradient(120deg,#ffd60a,#ff9f0a)" },
+];
+function bannerCssFor(u){
+  if (u.bannerImage && u.bannerImage.startsWith("data:")) return `url('${u.bannerImage}') center/cover`;
+  const tpl = BANNER_TEMPLATES.find(t=>t.id===u.bannerImage);
+  if (tpl) return tpl.css;
+  return `linear-gradient(120deg, ${u.bannerColor||'#ff7a1a'}, #1c1c1e)`;
+}
+function pickBannerTemplate(id){
+  const u = state.users[state.currentUser];
+  u.bannerImage = id; render();
+}
+function pickBannerColor(hex){
+  const u = state.users[state.currentUser];
+  u.bannerImage = null; u.bannerColor = hex; render();
+}
+function handleDropImage(ev, target){
+  ev.preventDefault();
+  const file = ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (file) readAndUploadImage(file, target);
+}
+function readAndUploadImage(file, target){
+  if (file.size > 350*1024){ customAlert("Bild ist zu groß (max. 350KB)."); return; }
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const u = state.users[state.currentUser];
+    if (target==="picture") u.profilePicture = e.target.result;
+    else u.bannerImage = e.target.result;
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+async function saveOnboarding(){
+  const u = state.users[state.currentUser];
+  const bio = document.getElementById("onbBio") ? document.getElementById("onbBio").value : u.bio;
+  try{
+    const { user } = await apiPatch("/progress/profile", {
+      picture: u.profilePicture, banner: u.bannerImage, bannerColor: u.bannerColor, bio,
+    });
+    hydrateUser(user);
+    await apiPatch("/progress/onboarding-complete");
+    state.users[state.currentUser].onboarded = true;
+    enterApp();
+  } catch(err){ await customAlert(err.message); }
+}
+function nextTutorialStep(){
+  if (state.tutorialStep >= TUTORIAL_STEPS.length-1){ finishTutorial(); return; }
+  state.tutorialStep++; render();
+}
+async function finishTutorial(){
+  state.showTutorial = false; render();
+  try{ await apiPatch("/progress/tutorial-complete"); state.users[state.currentUser].tutorialSeen = true; }
+  catch{ /* nicht kritisch, Tutorial würde beim nächsten Login halt nochmal erscheinen */ }
+}
+
+async function saveProfileBanner(){
+  const u = state.users[state.currentUser];
+  try{ const { user } = await apiPatch("/progress/profile", { banner: u.bannerImage, bannerColor: u.bannerColor }); hydrateUser(user); render(); }
+  catch(err){ await customAlert(err.message); }
+}
+async function saveProfilePictureField(){
+  const u = state.users[state.currentUser];
+  try{ const { user } = await apiPatch("/progress/profile", { picture: u.profilePicture }); hydrateUser(user); render(); }
+  catch(err){ await customAlert(err.message); }
 }
 
 /* ---------- ADMIN-PANEL ---------- */
@@ -379,53 +512,88 @@ async function adminEditStats(id, coins, xp, level, gems){
   try{
     await apiPatch(`/admin/users/${id}/stats`, { coins:Number(coins), xp:Number(xp), level:Number(level), gems:Number(gems) });
     await loadAdminUsers();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 async function adminSetRole(id, role){
   try{ await apiPatch(`/admin/users/${id}/role`, { role }); await loadAdminUsers(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
-async function adminTogglePermission(id, perm, checked){
-  const u = state.adminUsers.find(x=>x._id===id);
-  const current = new Set(u.permissions||[]);
-  checked ? current.add(perm) : current.delete(perm);
-  try{ await apiPatch(`/admin/users/${id}/permissions`, { permissions:[...current] }); await loadAdminUsers(); }
-  catch(err){ alert(err.message); }
+
+function openAdminEdit(id){
+  state.adminEditingUser = state.adminUsers.find(u=>u._id===id);
+  render();
 }
+function closeAdminEdit(){ state.adminEditingUser = null; render(); }
+async function saveAdminEdit(id){
+  const val = (fieldId)=>document.getElementById(fieldId).value;
+  const checked = (fieldId)=>document.getElementById(fieldId).checked;
+  try{
+    await apiPatch(`/admin/users/${id}/full`, {
+      avatar: val("editAvatar"),
+      bio: val("editBio"),
+      role: val("editRole"),
+      coins: Number(val("editCoins")),
+      gems: Number(val("editGems")),
+      xp: Number(val("editXp")),
+      level: Number(val("editLevel")),
+      subscriptionTier: val("editSubTier"),
+      banned: checked("editBanned"),
+      banReason: val("editBanReason"),
+      banDurationHours: val("editBanDuration") ? Number(val("editBanDuration")) : null,
+    });
+    playSound("notify");
+    state.adminEditingUser = null;
+    await loadAdminUsers();
+  } catch(err){ await customAlert(err.message); }
+}
+async function loadUnbanRequests(){
+  try{ const {requests} = await apiGet("/admin/unban-requests"); state.adminUnbanRequests = requests; }
+  catch(err){ state.adminUnbanRequests = []; }
+  render();
+}
+async function reviewUnbanRequest(id, approve){
+  try{ await apiPost(`/admin/unban-requests/${id}/review`, { approve }); await loadUnbanRequests(); await loadAdminUsers(); }
+  catch(err){ await customAlert(err.message); }
+}
+
 async function adminWarnUser(id){
-  const reason = prompt("Grund für die Verwarnung:");
+  const reason = await customPrompt("Grund für die Verwarnung:", "", "Nutzer verwarnen");
   if (!reason || !reason.trim()) return;
   try{
     const { autoBanned } = await apiPost(`/admin/users/${id}/warn`, { reason: reason.trim() });
-    if (autoBanned) alert("Nutzer hat die maximale Anzahl Verwarnungen erreicht und wurde automatisch gesperrt.");
+    if (autoBanned) customAlert("Nutzer hat die maximale Anzahl Verwarnungen erreicht und wurde automatisch gesperrt.");
     await loadAdminUsers();
-  } catch(err){ alert(err.message); }
+  } catch(err){ customAlert(err.message); }
 }
 async function adminClearWarnings(id){
-  if (!confirm("Alle Verwarnungen dieses Nutzers löschen?")) return;
+  if (!(await customConfirm("Alle Verwarnungen dieses Nutzers löschen?"))) return;
   try{ await apiDelete(`/admin/users/${id}/warnings`); await loadAdminUsers(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 async function adminClearFlag(id){
   try{ await apiPatch(`/admin/users/${id}/clear-flag`, {}); await loadAdminUsers(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 async function loadAdminActivity(){
-  try{ const { logs } = await apiGet("/admin/activity"); state.adminActivity = logs; }
+  try{ const {logs} = await apiGet(`/admin/activity${state.adminActivityFilter?`?username=${encodeURIComponent(state.adminActivityFilter)}`:""}`); state.adminActivity = logs; }
   catch(err){ state.adminActivity = []; }
   render();
 }
-function setAdminTab(tab){ state.adminTab = tab; render(); if (tab==="activity") loadAdminActivity(); }
+function viewUserLogs(username){
+  state.adminActivityFilter = username;
+  setAdminTab("activity");
+}
+function setAdminTab(tab){ state.adminTab = tab; render(); if (tab==="activity") loadAdminActivity(); if (tab==="unban") loadUnbanRequests(); }
 
 async function adminSetBanned(id, banned){
-  const reason = banned ? (prompt("Grund für die Sperre (optional):")||"") : "";
+  const reason = banned ? ((await customPrompt("Grund für die Sperre (optional):", "", "Nutzer sperren"))||"") : "";
   try{ await apiPatch(`/admin/users/${id}/ban`, { banned, reason }); await loadAdminUsers(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 async function adminDeleteUser(id, username){
-  if (!confirm(`Konto "${username}" wirklich unwiderruflich löschen?`)) return;
+  if (!(await customConfirm(`Konto "${username}" wirklich unwiderruflich löschen?`))) return;
   try{ await apiDelete(`/admin/users/${id}`); await loadAdminUsers(); }
-  catch(err){ alert(err.message); }
+  catch(err){ customAlert(err.message); }
 }
 
 /* ---------- LOKALES BACKUP (zusätzlich zur MongoDB-Speicherung) ---------- */
