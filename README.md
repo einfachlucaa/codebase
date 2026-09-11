@@ -4,6 +4,21 @@ Spielerische C#-Lernplattform mit Lektionen, Übungen, 4 Arcade-Minispielen,
 Coin-Wirtschaft, Leaderboard und Admin-Panel. Läuft komplett lokal über
 Node.js + Express, Fortschritt und Accounts werden in MongoDB gespeichert.
 
+## Datenbank
+
+MongoDB-Datenbank: **`codebase`** (Name steht im Pfad der `MONGODB_URI`). Sie wird beim ersten Start **automatisch** von MongoDB angelegt — es ist kein manuelles Erstellen von Collections nötig, das passiert beim ersten gespeicherten Dokument von selbst.
+
+Vier klar getrennte Collections (MongoDB nennt das, was in einer klassischen SQL-Datenbank eine "Tabelle" wäre, eine *Collection*):
+
+| Collection | Model | Inhalt |
+|---|---|---|
+| `users` | `src/models/User.js` | Accounts: Login-Daten, Rolle, Fortschritt (XP/Coins/Gems/Level), Avatar/Banner/Bio, Abo, Cookie-Clicker- & Factory-Stand, Warnungen, Sperr-Status inkl. bekannter IPs |
+| `messages` | `src/models/Message.js` | Direktnachrichten zwischen Freunden (Text + Sticker) |
+| `activity_logs` | `src/models/ActivityLog.js` | Alle Ereignisse fürs Admin-Panel (Logins, Käufe, Verwarnungen, Casino-Wetten, Cheat-Flags ...), läuft automatisch nach 30 Tagen ab |
+| `unban_requests` | `src/models/UnbanRequest.js` | Entsperrungs-Anfragen gesperrter Nutzer mit Status (pending/approved/denied) |
+
+Die Namen sind in jedem Model fest über `mongoose.model(name, schema, "collection_name")` gesetzt (statt Mongoose's automatischer Pluralisierung), damit in MongoDB Atlas → "Browse Collections" immer sofort klar ist, was wo liegt.
+
 ## Ordnerstruktur
 
 ```

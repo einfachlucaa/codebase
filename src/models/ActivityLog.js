@@ -21,4 +21,4 @@ const ActivityLogSchema = new mongoose.Schema(
 // Alte Logs automatisch nach 30 Tagen löschen, damit die Collection nicht endlos wächst.
 ActivityLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
 
-module.exports = mongoose.model("ActivityLog", ActivityLogSchema);
+module.exports = mongoose.model("ActivityLog", ActivityLogSchema, "activity_logs");

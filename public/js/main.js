@@ -83,6 +83,25 @@ function hydrateUser(serverUser){
   state.currentUser = serverUser.username;
 }
 
+/* ---------- AUTH-ROUTING: /login und /register als echte URLs,
+   Erstbesucher landen automatisch auf Registrieren, Wiederkehrer auf Login ---------- */
+function determineInitialAuthMode(){
+  const path = window.location.pathname;
+  if (path === "/login") return "login";
+  if (path === "/register") return "register";
+  return localStorage.getItem("cb_visited") ? "login" : "register";
+}
+function syncAuthUrl(mode){
+  const path = "/" + mode;
+  if (window.location.pathname !== path) history.pushState({authMode:mode}, "", path);
+}
+window.addEventListener("popstate", ()=>{
+  if (!state.currentUser){
+    const path = window.location.pathname;
+    if (path==="/login" || path==="/register"){ state.authMode = path.slice(1); render(); }
+  }
+});
+
 /* ---------- AUTH ---------- */
 async function doLogin(username, password){
   if (state.authBusy) return;
@@ -127,9 +146,10 @@ async function logout(){
   exitArcadeTimers();
   try{ await apiPost("/auth/logout"); } catch{ /* egal, Cookie lokal trotzdem verwerfen */ }
   state.currentUser=null; state.page="dashboard"; state.adminUsers=null; state.shop=null;
+  state.authMode = "login"; syncAuthUrl("login"); // nach Logout direkt zum Login, nicht zur Registrierung
   render();
 }
-function setAuthMode(m){ state.authMode=m; state.authError=""; render(); }
+function setAuthMode(m){ state.authMode=m; state.authError=""; syncAuthUrl(m); render(); }
 
 async function changeAvatar(av){
   const u = state.users[state.currentUser];
@@ -162,7 +182,13 @@ async function bootstrap(){
     hydrateUser(user);
     if (!user.onboarded) state.page = "onboarding";
     else if (!user.tutorialSeen) { state.tutorialStep = 0; state.showTutorial = true; }
-  } catch { /* nicht eingeloggt -> Login-Screen */ }
+  } catch {
+    // nicht eingeloggt -> Login/Register-Screen. Erstbesucher (noch nie hier
+    // gewesen) landen auf "Registrieren", Wiederkehrer direkt auf "Login".
+    state.authMode = determineInitialAuthMode();
+    syncAuthUrl(state.authMode);
+    localStorage.setItem("cb_visited", "1");
+  }
   state.booting = false;
   render();
 }
@@ -420,6 +446,7 @@ async function adminResetPicture(id){
 
 /* ---------- APP-EINSTIEG NACH LOGIN/REGISTER: Pflicht-Onboarding + Tutorial ---------- */
 function enterApp(){
+  history.pushState({}, "", "/"); // /login oder /register verlassen, sobald man drin ist
   const u = state.users[state.currentUser];
   if (!u.onboarded){ state.page = "onboarding"; render(); return; }
   goto("dashboard");

@@ -12,4 +12,4 @@ const UnbanRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("UnbanRequest", UnbanRequestSchema);
+module.exports = mongoose.model("UnbanRequest", UnbanRequestSchema, "unban_requests");

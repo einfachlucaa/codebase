@@ -1,53 +1,61 @@
 /* ---------- RENDER: AUTH ---------- */
 function renderBoot(){
   return `<div class="auth-wrap"><div class="card auth-card" style="text-align:center;">
-    <div style="font-size:40px;">🎓</div>
+    <div style="font-size:40px;">${brandLogo(40)}</div>
     <div class="body-text">Lade...</div>
   </div></div>`;
 }
 function renderAuth(){
   const err = state.authError ? `<div class="error-text">${escapeHtml(state.authError)}</div>` : `<div class="error-text"></div>`;
   const busy = state.authBusy;
-  if (state.authMode==="login"){
+  const mode = state.authMode;
+  const tabs = `<div class="auth-tabs">
+    <button class="auth-tab ${mode==='login'?'active':''}" onclick="setAuthMode('login')">${icon('key',16)} Login</button>
+    <button class="auth-tab ${mode==='register'?'active':''}" onclick="setAuthMode('register')">${icon('userPlus',16)} Registrieren</button>
+    <div class="auth-tab-slider" style="transform:translateX(${mode==='login'?'0':'100%'});"></div>
+  </div>`;
+  const logo = `<div class="auth-logo">${icon('rocket',36)}</div>`;
+
+  if (mode==="login"){
     return `
     <div class="auth-wrap"><div class="card auth-card">
-      <div style="font-size:40px;">🎓</div>
-      <div class="title">Willkommen zurück!</div>
-      <div class="body-text" style="margin-bottom:20px;">Melde dich mit deinem Konto an — dein Fortschritt wird in der Datenbank gespeichert.</div>
+      ${tabs}
+      ${logo}
+      <div class="title" style="text-align:center;">Willkommen zurück!</div>
+      <div class="body-text" style="margin-bottom:20px; text-align:center;">Melde dich an — dein Fortschritt lebt in der Datenbank.</div>
       <div class="field-label">Nutzername</div>
-      <input id="loginUser" type="text" placeholder="dein Nutzername" autocomplete="username"/>
+      <input id="loginUser" type="text" placeholder="dein Nutzername" autocomplete="username" style="width:100%;"/>
       <div class="field-label" style="margin-top:10px;">Passwort</div>
-      <input id="loginPass" type="password" placeholder="dein Passwort" autocomplete="current-password"
+      <input id="loginPass" type="password" placeholder="dein Passwort" autocomplete="current-password" style="width:100%;"
         onkeydown="if(event.key==='Enter')doLogin(document.getElementById('loginUser').value, document.getElementById('loginPass').value)"/>
       ${err}
       <button class="btn btn-primary" style="width:100%; margin:14px 0;" ${busy?"disabled":""}
         onclick="doLogin(document.getElementById('loginUser').value, document.getElementById('loginPass').value)">${busy?"Anmelden...":"Anmelden"}</button>
       ${state.wasBannedUsername ? `
         <div class="card" style="text-align:left; margin-top:6px; background:rgba(255,69,58,0.1); border-color:rgba(255,69,58,0.3);">
-          <div class="section-title" style="font-size:14px;">🚫 Konto gesperrt?</div>
+          <div class="section-title" style="font-size:14px;">${icon('ban',16)} Konto gesperrt?</div>
           <div class="body-text" style="margin-bottom:10px;">Du kannst eine Entsperrung mit Begründung beantragen — ein Admin prüft das.</div>
           <textarea id="unbanReason" rows="2" placeholder="Warum sollte dein Konto entsperrt werden?" style="width:100%; margin-bottom:8px;"></textarea>
           <button class="btn btn-secondary" style="width:100%;" onclick="submitUnbanRequest('${escapeHtml(state.wasBannedUsername)}', document.getElementById('unbanReason').value)">Entsperrung beantragen</button>
         </div>` : ""}
-      <div class="muted" style="margin-top:14px;">Noch kein Konto? <button class="btn-ghost" onclick="setAuthMode('register')">Jetzt registrieren</button></div>
     </div></div>`;
   }
   return `
   <div class="auth-wrap"><div class="card auth-card">
-    <div style="font-size:40px;">🚀</div>
-    <div class="title">Konto erstellen</div>
-    <div class="body-text" style="margin-bottom:20px;">Nutzername: 3-20 Zeichen (Buchstaben/Zahlen/_). Passwort: mind. 6 Zeichen.</div>
+    ${tabs}
+    ${logo}
+    <div class="title" style="text-align:center;">Konto erstellen</div>
+    <div class="body-text" style="margin-bottom:20px; text-align:center;">Nutzername: 3-20 Zeichen (Buchstaben/Zahlen/_). Passwort: mind. 6 Zeichen.</div>
     <div class="field-label">Nutzername</div>
-    <input id="regUser" type="text" placeholder="z.B. Max" autocomplete="username"/>
+    <input id="regUser" type="text" placeholder="z.B. Max" autocomplete="username" style="width:100%;"/>
     <div class="field-label" style="margin-top:10px;">Passwort</div>
-    <input id="regPass" type="password" placeholder="Passwort" autocomplete="new-password"/>
+    <input id="regPass" type="password" placeholder="Passwort" autocomplete="new-password" style="width:100%;"/>
     <div class="field-label" style="margin-top:10px;">Passwort wiederholen</div>
-    <input id="regPass2" type="password" placeholder="Passwort wiederholen" autocomplete="new-password"
+    <input id="regPass2" type="password" placeholder="Passwort wiederholen" autocomplete="new-password" style="width:100%;"
       onkeydown="if(event.key==='Enter')doRegister(document.getElementById('regUser').value, document.getElementById('regPass').value, document.getElementById('regPass2').value)"/>
     ${err}
     <button class="btn btn-primary" style="width:100%; margin:14px 0;" ${busy?"disabled":""}
       onclick="doRegister(document.getElementById('regUser').value, document.getElementById('regPass').value, document.getElementById('regPass2').value)">${busy?"Erstelle Konto...":"Registrieren"}</button>
-    <div class="muted">Schon ein Konto? <button class="btn-ghost" onclick="setAuthMode('login')">Zum Login</button></div>
   </div></div>`;
 }
 

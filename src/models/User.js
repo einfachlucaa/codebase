@@ -147,4 +147,6 @@ UserSchema.set("toJSON", {
   },
 });
 
-module.exports = mongoose.model("User", UserSchema);
+// Expliziter Collection-Name (statt Mongoose's automatischer Pluralisierung) —
+// sorgt für eine klare, vorhersehbare Struktur in der MongoDB-Datenbank "codebase".
+module.exports = mongoose.model("User", UserSchema, "users");
