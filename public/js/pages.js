@@ -65,6 +65,7 @@ function renderShell(inner){
   const items = [
     ["dashboard", icon("home",18), "Dashboard"], ["learning", icon("book",18), "Lernen"], ["exercises", icon("target",18), "Aufgaben"],
     ["achievements", icon("trophy",18), "Erfolge"], ["games", icon("gamepad",18), "Spiele"],
+    ["projects", icon("terminal",18), "Projekte"],
     ["shop", icon("wallet",18), "Shop"], ["subscription", icon("card",18), "Abo"], ["friends", icon("users",18), "Freunde"],
     ["leaderboard", icon("medal",18), "Leaderboard"], ["profile", icon("user",18), "Profil"], ["settings", icon("settings",18), "Einstellungen"],
   ];
@@ -365,8 +366,8 @@ function renderArcade(){
   ARCADE_GAMES.forEach(g=>{
     const levelLocked = p.level < g.unlockLevel;
     const disabled = levelLocked || p.coins<g.cost;
-    html += `<div class="card game-card" style="${levelLocked?'opacity:.8; filter:grayscale(0.5);':''}">
-      <div class="gicon">${levelLocked?icon("lock",34):g.icon}</div>
+    html += `<div class="card game-card ${levelLocked?'game-card-locked':''}">
+      <div class="gicon" style="${levelLocked?'opacity:.35; filter:grayscale(1);':''}">${levelLocked?icon("lock",34):g.icon}</div>
       <div class="section-title" style="margin:10px 0 4px;">${escapeHtml(g.title)}</div>
       <div class="body-text">${escapeHtml(g.desc)}</div>
       <div class="muted" style="margin:10px 0 14px;">${levelLocked?`${icon("lock",12)} Ab Level ${g.unlockLevel}`:`${icon("trophy",12)} Highscore: ${g.high(p)}`}</div>
@@ -723,6 +724,48 @@ function renderGames(){
   ${tabBar}${inner}`;
 }
 
+/* ---------- RENDER: PROJEKTE / CODE-IDE ---------- */
+function renderProjects(){
+  if (state.activeProject) return renderProjectEditor();
+  let html = `<div class="title">${icon("terminal",26)} Projekte</div>
+  <div class="body-text" style="margin-bottom:6px;">Eigene Code-Projekte erstellen, speichern und ausführen.</div>
+  <div class="body-text muted" style="margin-bottom:18px;">Ausführung läuft über einen externen, sicher gesandboxten Dienst (Piston) — dein eigener Code läuft nie auf unserem Server.</div>
+  <button class="btn btn-primary" style="margin-bottom:20px;" onclick="createNewProject()">${icon("plus",16)} Neues Projekt</button>`;
+  if (!state.projects) return html + `<div class="body-text">Lade Projekte...</div>`;
+  if (!state.projects.length) return html + `<div class="body-text">Noch keine Projekte — leg dein erstes an!</div>`;
+  html += `<div class="ach-grid">`;
+  state.projects.forEach(p=>{
+    const lang = PROJECT_LANGS.find(l=>l.id===p.language);
+    html += `<div class="card" style="cursor:pointer;" onclick="openProject('${p._id}')">
+      <div class="section-title" style="margin-bottom:4px;">${escapeHtml(p.name)}</div>
+      <div class="pill" style="margin:0 0 8px;">${lang?lang.label:p.language}</div>
+      <div class="muted">Bearbeitet: ${new Date(p.updatedAt).toLocaleDateString('de-DE')}</div>
+    </div>`;
+  });
+  return html + `</div>`;
+}
+function renderProjectEditor(){
+  const p = state.activeProject;
+  const lang = PROJECT_LANGS.find(l=>l.id===p.language);
+  const out = state.codeOutput;
+  return `
+  <button class="btn btn-secondary" onclick="closeProject()" style="margin-bottom:14px;">← Zurück</button>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+    <div class="title" style="margin:0;">${icon("terminal",22)} ${escapeHtml(p.name)} <span class="pill">${lang?lang.label:p.language}</span></div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary" ${state.codeRunning?"disabled":""} onclick="runActiveProject()">${icon("play",16)} ${state.codeRunning?"Läuft...":"Ausführen"}</button>
+      <button class="btn btn-secondary" style="color:var(--danger);" onclick="deleteActiveProject()">${icon("trash",16)}</button>
+    </div>
+  </div>
+  <textarea class="code-editor" spellcheck="false" oninput="editProjectCode(this.value)">${escapeHtml(p.code||"")}</textarea>
+  <div class="section-title" style="margin-top:18px;">Ausgabe</div>
+  <div class="code-block" style="min-height:80px; white-space:pre-wrap;">${
+    !out ? `<span class="muted">Noch nichts ausgeführt — klick auf "Ausführen".</span>`
+    : out.compileStderr ? `<span style="color:var(--danger);">Compile-Fehler:\n${escapeHtml(out.compileStderr)}</span>`
+    : (escapeHtml(out.stdout||"") + (out.stderr?`\n<span style="color:var(--danger);">${escapeHtml(out.stderr)}</span>`:"") || `<span class="muted">(keine Ausgabe)</span>`)
+  }</div>`;
+}
+
 /* ---------- RENDER: ADMIN-PANEL ---------- */
 function renderAdmin(){
   const tabBtn = (key,label)=>`<button class="btn ${state.adminTab===key?'btn-primary':'btn-secondary'}" style="padding:8px 14px;" onclick="setAdminTab('${key}')">${label}</button>`;
@@ -766,9 +809,9 @@ function renderAdminEditModal(){
         ${(state.adminRoles||["user","moderator","admin"]).map(r=>`<option value="${r}" ${u.role===r?"selected":""}>${r}</option>`).join("")}
       </select>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-        <div><div class="field-label">Coins</div><input id="editCoins" type="number" value="${u.progress.coins}"/></div>
-        <div><div class="field-label">Gems</div><input id="editGems" type="number" value="${u.progress.gems}"/></div>
-        <div><div class="field-label">XP</div><input id="editXp" type="number" value="${u.progress.xp}"/></div>
+        <div><div class="field-label">Coins</div><input id="editCoins" type="number" min="0" max="10000000" value="${u.progress.coins}"/></div>
+        <div><div class="field-label">Gems</div><input id="editGems" type="number" min="0" max="10000000" value="${u.progress.gems}"/></div>
+        <div><div class="field-label">XP</div><input id="editXp" type="number" min="0" max="10000000" value="${u.progress.xp}"/></div>
         <div><div class="field-label">Level</div><input id="editLevel" type="number" value="${u.progress.level}"/></div>
       </div>
       <div class="field-label" style="margin-top:10px;">Abo-Stufe</div>
@@ -810,9 +853,9 @@ function renderAdminUsersTab(){
           ${(state.adminRoles||["user","moderator","admin"]).map(r=>`<option value="${r}" ${u.role===r?"selected":""}>${r}</option>`).join("")}
         </select>
       </td>
-      <td><input type="number" id="coins_${u._id}" value="${u.progress.coins}" style="width:80px;"/></td>
-      <td><input type="number" id="gems_${u._id}" value="${u.progress.gems}" style="width:70px;"/></td>
-      <td><input type="number" id="xp_${u._id}" value="${u.progress.xp}" style="width:80px;"/></td>
+      <td><input type="number" min="0" max="10000000" id="coins_${u._id}" value="${u.progress.coins}" style="width:80px;"/></td>
+      <td><input type="number" min="0" max="10000000" id="gems_${u._id}" value="${u.progress.gems}" style="width:70px;"/></td>
+      <td><input type="number" min="0" max="10000000" id="xp_${u._id}" value="${u.progress.xp}" style="width:80px;"/></td>
       <td><input type="number" id="level_${u._id}" value="${u.progress.level}" style="width:60px;"/></td>
       <td>${u.banned ? `<span style="color:var(--danger);">🚫 Gesperrt</span>` : `<span style="color:var(--success);">✅ Aktiv</span>`}</td>
       <td style="display:flex; gap:6px; flex-wrap:wrap; padding:10px;">
@@ -960,6 +1003,7 @@ function render(){
     case "exercises": inner = renderPractice(); break;
     case "achievements": inner = renderAchievements(); break;
     case "games": case "arcade": case "cookie": case "factory": case "casino": inner = renderGames(); break;
+    case "projects": inner = renderProjects(); break;
     case "shop": inner = renderShop(); break;
     case "subscription": inner = renderSubscription(); break;
     case "friends": inner = renderFriends(); break;

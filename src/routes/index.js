@@ -10,6 +10,8 @@ router.use("/friends", require("./friendsRoutes"));
 router.use("/messages", require("./messageRoutes"));
 router.use("/idle", require("./idleRoutes"));
 router.use("/subscription", require("./subscriptionRoutes"));
+router.use("/projects", require("./projectRoutes"));
+router.use("/code", require("./codeRoutes"));
 router.use("/admin", require("./adminRoutes"));
 
 module.exports = router;

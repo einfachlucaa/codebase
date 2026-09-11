@@ -1,6 +1,7 @@
 /* ---------- NAVIGATION ---------- */
 function goto(page){
   if (page==="admin" && !isAdminUser() && !hasPermission("users.view")) return; // Guard: kein Zugriff ohne Berechtigung
+  stopAdminLivePoll();
   state.page = page;
   if (page==="learning"){ state.lessonId=null; }
   if (page==="exercises"){ loadPractice(); }
@@ -11,7 +12,8 @@ function goto(page){
   if (page==="friends") { loadFriends(); loadUnreadCounts(); }
   if (page==="games") switchGamesTab(state.gamesTab||"arcade");
   if (page==="subscription") loadSubscription();
-  if (page==="admin") loadAdminUsers();
+  if (page==="projects") loadProjects();
+  if (page==="admin") { loadAdminUsers(); startAdminLivePoll(); }
 }
 function switchGamesTab(tab){
   state.gamesTab = tab; state.page="games"; state.arcadeGame=null; exitArcadeTimers();
@@ -540,6 +542,68 @@ async function saveFavoriteCourse(id){
   catch(err){ await customAlert(err.message); }
 }
 
+/* ---------- PROJEKTE / CODE-IDE ---------- */
+const PROJECT_LANGS = [
+  { id:"python", label:"Python" }, { id:"javascript", label:"JavaScript" },
+  { id:"java", label:"Java" }, { id:"cpp", label:"C++" },
+  { id:"lua", label:"Lua" }, { id:"csharp", label:"C#" },
+];
+async function loadProjects(){
+  try{ const {projects} = await apiGet("/projects"); state.projects = projects; }
+  catch(err){ state.projects = []; }
+  render();
+}
+async function createNewProject(){
+  const name = await customPrompt("Name des Projekts:", "", "Neues Projekt");
+  if (!name || !name.trim()) return;
+  const lang = await customPrompt("Sprache (python/javascript/java/cpp/lua/csharp):", "python", "Sprache wählen");
+  if (!lang) return;
+  const langId = PROJECT_LANGS.find(l=>l.id===lang.trim().toLowerCase())?.id;
+  if (!langId){ await customAlert("Unbekannte Sprache. Erlaubt: python, javascript, java, cpp, lua, csharp"); return; }
+  try{
+    const { project } = await apiPost("/projects", { name: name.trim(), language: langId });
+    await loadProjects();
+    openProject(project._id);
+  } catch(err){ await customAlert(err.message); }
+}
+function openProject(id){
+  state.activeProject = state.projects.find(p=>p._id===id);
+  state.codeOutput = null;
+  render();
+}
+function closeProject(){ state.activeProject = null; state.codeOutput = null; render(); }
+let _projectSaveTimer = null;
+function editProjectCode(code){
+  state.activeProject.code = code;
+  clearTimeout(_projectSaveTimer);
+  _projectSaveTimer = setTimeout(saveActiveProject, 900);
+}
+async function saveActiveProject(){
+  if (!state.activeProject) return;
+  try{ await apiPatch(`/projects/${state.activeProject._id}`, { code: state.activeProject.code }); }
+  catch(err){ /* still egal, nächster Save-Versuch holt es nach */ }
+}
+async function runActiveProject(){
+  if (!state.activeProject || state.codeRunning) return;
+  await saveActiveProject();
+  state.codeRunning = true; state.codeOutput = null; render();
+  try{
+    const result = await apiPost("/code/run", { language: state.activeProject.language, code: state.activeProject.code });
+    state.codeOutput = result;
+    playSound(result.stderr || result.compileStderr ? "wrong" : "correct");
+  } catch(err){ state.codeOutput = { stderr: err.message }; }
+  finally{ state.codeRunning = false; render(); }
+}
+async function deleteActiveProject(){
+  if (!state.activeProject) return;
+  if (!(await customConfirm(`Projekt "${state.activeProject.name}" wirklich löschen?`))) return;
+  try{
+    await apiDelete(`/projects/${state.activeProject._id}`);
+    state.activeProject = null;
+    await loadProjects();
+  } catch(err){ await customAlert(err.message); }
+}
+
 /* ---------- ADMIN-PANEL ---------- */
 async function loadAdminUsers(){
   if (!isAdminUser() && !hasPermission("users.view")) return;
@@ -554,7 +618,8 @@ async function adminEditStats(id, coins, xp, level, gems){
   try{
     await apiPatch(`/admin/users/${id}/stats`, { coins:Number(coins), xp:Number(xp), level:Number(level), gems:Number(gems) });
     await loadAdminUsers();
-  } catch(err){ customAlert(err.message); }
+    playSound("notify");
+  } catch(err){ await customAlert("Speichern fehlgeschlagen: " + err.message, "Fehler"); }
 }
 async function adminSetRole(id, role){
   try{ await apiPatch(`/admin/users/${id}/role`, { role }); await loadAdminUsers(); }
@@ -570,7 +635,7 @@ async function saveAdminEdit(id){
   const val = (fieldId)=>document.getElementById(fieldId).value;
   const checked = (fieldId)=>document.getElementById(fieldId).checked;
   try{
-    await apiPatch(`/admin/users/${id}/full`, {
+    const { user } = await apiPatch(`/admin/users/${id}/full`, {
       avatar: val("editAvatar"),
       bio: val("editBio"),
       role: val("editRole"),
@@ -586,7 +651,9 @@ async function saveAdminEdit(id){
     playSound("notify");
     state.adminEditingUser = null;
     await loadAdminUsers();
-  } catch(err){ await customAlert(err.message); }
+    // Bestätigung, damit ein fehlgeschlagenes Speichern nie mehr unbemerkt bleibt
+    await customAlert(`${user.username} wurde erfolgreich gespeichert.`, "Gespeichert ✓");
+  } catch(err){ await customAlert("Speichern fehlgeschlagen: " + err.message, "Fehler"); }
 }
 async function loadUnbanRequests(){
   try{ const {requests} = await apiGet("/admin/unban-requests"); state.adminUnbanRequests = requests; }
@@ -626,6 +693,20 @@ function viewUserLogs(username){
   setAdminTab("activity");
 }
 function setAdminTab(tab){ state.adminTab = tab; render(); if (tab==="activity") loadAdminActivity(); if (tab==="unban") loadUnbanRequests(); }
+
+/* ---------- ADMIN: LIVE-AKTUALISIERUNG ---------- */
+let _adminPollTimer = null;
+function startAdminLivePoll(){
+  stopAdminLivePoll();
+  _adminPollTimer = setInterval(()=>{
+    if (state.page!=="admin") { stopAdminLivePoll(); return; }
+    if (state.adminEditingUser) return; // nicht mittendrin im Bearbeiten stören
+    if (state.adminTab==="users") loadAdminUsers();
+    else if (state.adminTab==="activity") loadAdminActivity();
+    else if (state.adminTab==="unban") loadUnbanRequests();
+  }, 6000);
+}
+function stopAdminLivePoll(){ if (_adminPollTimer){ clearInterval(_adminPollTimer); _adminPollTimer=null; } }
 
 async function adminSetBanned(id, banned){
   const reason = banned ? ((await customPrompt("Grund für die Sperre (optional):", "", "Nutzer sperren"))||"") : "";

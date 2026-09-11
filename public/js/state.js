@@ -28,6 +28,10 @@ let state = {
   adminQuery: "",
   adminActivity: null,
   adminActivityFilter: null, // Username-Filter für den Aktivitäts-Tab
+  projects: null,
+  activeProject: null,
+  codeOutput: null,
+  codeRunning: false,
   adminTab: "users",   // "users" | "activity" | "unban"
   adminEditingUser: null, // aktuell im Vollbild-Editor geöffneter Nutzer
   adminUnbanRequests: null,
@@ -102,18 +106,18 @@ function checkAchievements(p){
 function recordExercise(p, exDef, exId, correct){
   registerLearningDay(p);
   if (correct){
-    // Sicherheitsfix: volle XP/Coins nur beim ERSTEN Lösen einer Aufgabe.
-    // Vorher konnte man durch "Neue Aufgaben mischen" dieselbe Aufgabe beliebig
-    // oft neu bekommen und unendlich XP/Coins farmen. Wiederholtes Üben gibt
-    // jetzt nur noch einen kleinen Übungsbonus (20%).
+    // Sicherheit: Belohnung gibt es WIRKLICH nur beim allerersten Lösen einer
+    // Aufgabe — jedes weitere Mal (z.B. durch "Neue Aufgaben mischen") zählt
+    // zwar für den aktuellen Streak, bringt aber 0 XP/Coins. Kein Farmen mehr möglich.
     const firstTime = !p.completedExercises.includes(exId);
-    if (firstTime) p.completedExercises.push(exId);
-    p.totalSolved++; p.currentStreak++; p.bestStreak = Math.max(p.bestStreak, p.currentStreak);
-    p.daily.exToday++;
-    const xpGain = firstTime ? exDef.xp : Math.ceil(exDef.xp*0.2);
-    const coinGain = firstTime ? exDef.coins : Math.ceil(exDef.coins*0.2);
-    p.daily.xpToday += xpGain;
-    addXp(p, xpGain); addCoins(p, coinGain);
+    p.currentStreak++; p.bestStreak = Math.max(p.bestStreak, p.currentStreak);
+    if (firstTime){
+      p.completedExercises.push(exId);
+      p.totalSolved++;
+      p.daily.exToday++;
+      p.daily.xpToday += exDef.xp;
+      addXp(p, exDef.xp); addCoins(p, exDef.coins);
+    }
   } else {
     p.currentStreak = 0;
   }

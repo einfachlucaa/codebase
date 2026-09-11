@@ -26,10 +26,11 @@ const editStats = asyncHandler(async (req, res) => {
   if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
 
   const { coins, gems, xp, level } = req.body;
-  if (coins !== undefined) user.progress.coins = Math.max(0, Number(coins));
-  if (gems !== undefined) user.progress.gems = Math.max(0, Number(gems));
-  if (xp !== undefined) user.progress.xp = Math.max(0, Number(xp));
-  if (level !== undefined) user.progress.level = Math.max(1, Number(level));
+  const num = (v, fallback) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
+  if (coins !== undefined) user.progress.coins = Math.max(0, num(coins, user.progress.coins));
+  if (gems !== undefined) user.progress.gems = Math.max(0, num(gems, user.progress.gems));
+  if (xp !== undefined) user.progress.xp = Math.max(0, num(xp, user.progress.xp));
+  if (level !== undefined) user.progress.level = Math.max(1, num(level, user.progress.level));
   user.markModified("progress");
   await user.save();
   res.json({ user });
@@ -123,10 +124,11 @@ const fullUpdate = asyncHandler(async (req, res) => {
   const isSelf = String(req.user._id) === req.params.id;
   const b = req.body;
 
-  if (b.coins !== undefined) user.progress.coins = Math.max(0, Number(b.coins));
-  if (b.gems !== undefined) user.progress.gems = Math.max(0, Number(b.gems));
-  if (b.xp !== undefined) user.progress.xp = Math.max(0, Number(b.xp));
-  if (b.level !== undefined) user.progress.level = Math.max(1, Number(b.level));
+  const num = (v, fallback) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
+  if (b.coins !== undefined) user.progress.coins = Math.max(0, num(b.coins, user.progress.coins));
+  if (b.gems !== undefined) user.progress.gems = Math.max(0, num(b.gems, user.progress.gems));
+  if (b.xp !== undefined) user.progress.xp = Math.max(0, num(b.xp, user.progress.xp));
+  if (b.level !== undefined) user.progress.level = Math.max(1, num(b.level, user.progress.level));
   if (b.avatar !== undefined) user.avatar = String(b.avatar).slice(0, 8);
   if (b.bio !== undefined) user.bio = String(b.bio).slice(0, 160);
   if (b.role !== undefined && ROLES.includes(b.role) && !(isSelf && b.role !== "admin")) user.role = b.role;

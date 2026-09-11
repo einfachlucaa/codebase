@@ -124,6 +124,27 @@ const UserSchema = new mongoose.Schema(
 );
 
 // Passwort niemals im Klartext ablegen.
+// Harte Obergrenze für die Wirtschaft: 10 Millionen bei Coins/Gems/XP.
+// Als pre("save")-Hook statt an jeder einzelnen Stelle im Code, damit
+// WIRKLICH JEDER Pfad (Admin-Edit, Idle-Games, Casino, Shop, Sync ...)
+// automatisch erfasst ist, auch zukünftige. Zusätzlich NaN-Schutz.
+const MAX_ECONOMY_VALUE = 10_000_000;
+UserSchema.pre("save", function (next) {
+  const p = this.progress;
+  if (p) {
+    const clamp = (v, fallback) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.min(MAX_ECONOMY_VALUE, Math.max(0, n));
+    };
+    p.coins = clamp(p.coins, 0);
+    p.gems = clamp(p.gems, 0);
+    p.xp = clamp(p.xp, 0);
+    p.totalCoinsEarned = clamp(p.totalCoinsEarned, 0);
+  }
+  next();
+});
+
 UserSchema.methods.setPassword = async function (plainPassword) {
   this.passwordHash = await bcrypt.hash(plainPassword, config.bcryptSaltRounds);
 };

@@ -41,7 +41,7 @@
 }
 * { box-sizing: border-box; }
 html, body {
-  margin: 0; padding: 0; height: 100%;
+  margin: 0; padding: 0; height: 100%; overflow: hidden; /* Seite selbst scrollt NICHT mehr */
   background:
     radial-gradient(circle at 12% 0%, rgba(255,122,26,0.14), transparent 45%),
     radial-gradient(circle at 88% 100%, rgba(255,176,32,0.08), transparent 45%),
@@ -50,14 +50,16 @@ html, body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
 }
-#app { min-height: 100vh; }
+#app { height: 100vh; overflow: hidden; }
 button { font-family: inherit; cursor: pointer; }
 input, textarea, select { font-family: inherit; }
 a { color: inherit; }
 ::selection { background: var(--accent); color: white; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(255,122,26,0.35); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,122,26,0.6); background-clip: padding-box; }
 ::-webkit-scrollbar-track { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgba(255,122,26,0.4) transparent; }
 
 /* ---------- GLOBALE FORMULAR-STYLES (custom statt Browser-Standard, überall) ---------- */
 input[type="text"], input[type="password"], input[type="number"], input[type="email"],
@@ -139,13 +141,12 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
 .error-text { color: var(--danger); font-size: 12.5px; margin: -6px 0 12px 0; min-height: 14px; }
 
 /* ---------- SHELL ---------- */
-.shell { display: flex; min-height: 100vh; }
+.shell { display: flex; height: 100vh; overflow: hidden; }
 .sidebar {
   width: 240px; background: rgba(15,15,16,0.75); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; padding: 20px 0; flex-shrink: 0;
   backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
-  position: sticky; top: 0; height: 100vh; overflow-y: auto;
-  position: relative;
+  height: 100vh; overflow-y: auto; position: relative;
 }
 .sidebar::after {
   /* dezenter, vertikaler Orange-Linien-Akzent am Rand der Sidebar */
@@ -174,7 +175,7 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
   display: flex; align-items: center; gap: 10px;
 }
 .user-chip .av { font-size: 24px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
-.content { flex: 1; padding: 30px 40px; overflow-y: auto; max-width: 1200px; }
+.content { flex: 1; height: 100vh; padding: 30px 40px 60px; overflow-y: auto; max-width: 1200px; }
 
 .warn-banner {
   background: rgba(255,176,32,0.14); border: 1px solid rgba(255,176,32,0.35); color: var(--warning);
@@ -195,7 +196,12 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .lesson-card:hover { background: var(--bg-card-hover); transform: translateY(-2px); }
-.lesson-card:disabled { opacity: 0.8; filter: grayscale(0.5) brightness(0.75); cursor: not-allowed; }
+.lesson-card:disabled {
+  cursor: not-allowed; background: rgba(20,20,22,0.55); border-color: rgba(120,120,128,0.15);
+}
+.lesson-card:disabled .icon { opacity: 0.3; filter: grayscale(1); }
+.lesson-card:disabled .lname { color: var(--text-secondary); }
+.lesson-card:disabled .muted { color: var(--text-muted); }
 .lesson-card .top-row { display: flex; justify-content: space-between; align-items: center; }
 .lesson-card .icon { font-size: 24px; }
 .lesson-card .lname { font-weight: 600; margin-top: 10px; font-size: 14px; }
@@ -478,3 +484,13 @@ body::before {
   border: 1px solid var(--badge-color, var(--accent)); color: var(--text-primary);
   font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 980px;
 }
+.game-card-locked { background: rgba(20,20,22,0.55); }
+
+/* ---------- CODE-EDITOR (Projekte) ---------- */
+.code-editor {
+  width: 100%; min-height: 340px; resize: vertical;
+  background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: #7ee0ff; font-family: "Cascadia Code", ui-monospace, "Courier New", monospace;
+  font-size: 13.5px; line-height: 1.6; padding: 16px; tab-size: 4;
+}
+.code-editor:focus { border-color: var(--accent); outline: none; }

@@ -41,6 +41,8 @@ const ICONS = {
   key: '<circle cx="8" cy="15" r="3.6"/><path d="M10.5 12.5 20 3"/><path d="M16 7l2.5 2.5"/><path d="M13 10l2 2"/>',
   userPlus: '<circle cx="9" cy="8" r="3.6"/><path d="M2 20c1-4 3.5-6.2 7-6.2s6 2.2 7 6.2"/><path d="M18 8v6M15 11h6"/>',
   rocket: '<path d="M12 2c3 1.5 5 5 5 9-1.5.5-3.5.5-5 0-1.5.5-3.5.5-5 0 0-4 2-7.5 5-9Z"/><circle cx="12" cy="9.5" r="1.4" fill="currentColor"/><path d="M8.5 15 6 18l3-.7"/><path d="M15.5 15 18 18l-3-.7"/><path d="M10 18l2 3 2-3"/>',
+  terminal: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9l3.5 3L7 15"/><path d="M13 15h4"/>',
+  play: '<path d="M7 4.5v15l13-7.5Z"/>',
 };
 function icon(name, size, extraClass){
   const body = ICONS[name] || ICONS.check;
