@@ -88,6 +88,7 @@ const UserSchema = new mongoose.Schema(
     bio: { type: String, default: "", maxlength: 160 },
     onboarded: { type: Boolean, default: false },   // Pflicht-Profil-Setup nach Registrierung abgeschlossen?
     tutorialSeen: { type: Boolean, default: false }, // Einführungs-Tour schon gesehen?
+    favoriteCourse: { type: String, default: null }, // z.B. "csharp" oder "python" — als Badge am Profil
     ownedAvatars: { type: [String], default: [] }, // im Shop gekaufte Premium-Avatare
 
     // ---- Abo-System (kostet Gems, keine echten Zahlungen) ----

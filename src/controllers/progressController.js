@@ -103,7 +103,7 @@ function validateImageDataUri(dataUri, label){
 function validateProfilePicture(dataUri){ return validateImageDataUri(dataUri, "Profilbild"); }
 
 const updateProfile = asyncHandler(async (req, res) => {
-  const { avatar, picture, bio, banner, bannerColor } = req.body;
+  const { avatar, picture, bio, banner, bannerColor, favoriteCourse } = req.body;
   if (avatar) {
     const owns = req.user.ownedAvatars.includes(avatar);
     const FREE_AVATARS = ["🧑‍💻", "👩‍💻", "🧑‍🚀", "🦊", "🐱", "🐼", "🐧", "🦄", "🐸", "🤖", "🐨", "🦁"];
@@ -122,6 +122,9 @@ const updateProfile = asyncHandler(async (req, res) => {
   if (bannerColor !== undefined) {
     if (!/^#[0-9a-fA-F]{6}$/.test(bannerColor)) throw new ApiError(400, "Ungültiger Farbwert.");
     req.user.bannerColor = bannerColor;
+  }
+  if (favoriteCourse !== undefined) {
+    req.user.favoriteCourse = favoriteCourse ? String(favoriteCourse).slice(0, 30) : null;
   }
   if (bio !== undefined) {
     req.user.bio = String(bio).slice(0, 160);

@@ -71,6 +71,7 @@ function hydrateUser(serverUser){
     bio: serverUser.bio || "",
     onboarded: !!serverUser.onboarded,
     tutorialSeen: !!serverUser.tutorialSeen,
+    favoriteCourse: serverUser.favoriteCourse || null,
     createdAt: serverUser.createdAt,
     role: serverUser.role,
     permissions: serverUser.permissions || [],
@@ -460,6 +461,10 @@ const BANNER_TEMPLATES = [
   { id:"tpl-royal", label:"Royal", css:"linear-gradient(120deg,#5e5ce6,#ff375f)" },
   { id:"tpl-mono", label:"Mono", css:"linear-gradient(120deg,#2c2c2e,#1c1c1e)" },
   { id:"tpl-gold", label:"Gold", css:"linear-gradient(120deg,#ffd60a,#ff9f0a)" },
+  { id:"tpl-neon", label:"Neon", css:"linear-gradient(120deg,#00f5d4,#ff375f)" },
+  { id:"tpl-lava", label:"Lava", css:"linear-gradient(120deg,#ff453a,#8b0000)" },
+  { id:"tpl-grape", label:"Traube", css:"linear-gradient(120deg,#8e2de2,#4a00e0)" },
+  { id:"tpl-mint", label:"Mint", css:"linear-gradient(120deg,#30d158,#64d2ff)" },
 ];
 function bannerCssFor(u){
   if (u.bannerImage && u.bannerImage.startsWith("data:")) return `url('${u.bannerImage}') center/cover`;
@@ -474,6 +479,10 @@ function pickBannerTemplate(id){
 function pickBannerColor(hex){
   const u = state.users[state.currentUser];
   u.bannerImage = null; u.bannerColor = hex; render();
+}
+function pickFavoriteCourse(id){
+  const u = state.users[state.currentUser];
+  u.favoriteCourse = (u.favoriteCourse===id) ? null : id; render();
 }
 function handleDropImage(ev, target){
   ev.preventDefault();
@@ -496,7 +505,7 @@ async function saveOnboarding(){
   const bio = document.getElementById("onbBio") ? document.getElementById("onbBio").value : u.bio;
   try{
     const { user } = await apiPatch("/progress/profile", {
-      picture: u.profilePicture, banner: u.bannerImage, bannerColor: u.bannerColor, bio,
+      picture: u.profilePicture, banner: u.bannerImage, bannerColor: u.bannerColor, bio, favoriteCourse: u.favoriteCourse,
     });
     hydrateUser(user);
     await apiPatch("/progress/onboarding-complete");
@@ -522,6 +531,12 @@ async function saveProfileBanner(){
 async function saveProfilePictureField(){
   const u = state.users[state.currentUser];
   try{ const { user } = await apiPatch("/progress/profile", { picture: u.profilePicture }); hydrateUser(user); render(); }
+  catch(err){ await customAlert(err.message); }
+}
+async function saveFavoriteCourse(id){
+  const u = state.users[state.currentUser];
+  const newVal = (u.favoriteCourse===id) ? null : id;
+  try{ const { user } = await apiPatch("/progress/profile", { favoriteCourse: newVal }); hydrateUser(user); render(); }
   catch(err){ await customAlert(err.message); }
 }
 

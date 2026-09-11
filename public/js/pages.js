@@ -14,7 +14,7 @@ function renderAuth(){
     <button class="auth-tab ${mode==='register'?'active':''}" onclick="setAuthMode('register')">${icon('userPlus',16)} Registrieren</button>
     <div class="auth-tab-slider" style="transform:translateX(${mode==='login'?'0':'100%'});"></div>
   </div>`;
-  const logo = `<div class="auth-logo">${icon('rocket',36)}</div>`;
+  const logo = `<div class="auth-logo" style="font-size:40px;">🚀</div>`;
 
   if (mode==="login"){
     return `
@@ -93,43 +93,64 @@ function renderOnboarding(){
   const u = state.users[state.currentUser];
   const avatars = AVATARS.map(a=>`<button class="btn btn-secondary avatar-pick ${u.avatar===a?'avatar-selected':''}" onclick="const usr=state.users[state.currentUser]; usr.avatar='${a}'; render();">${a}</button>`).join("");
   const templates = BANNER_TEMPLATES.map(t=>`<button class="banner-tpl ${u.bannerImage===t.id?'selected':''}" style="background:${t.css};" onclick="pickBannerTemplate('${t.id}')" title="${t.label}"></button>`).join("");
+  const courseBadges = COURSES.map(c=>`<button class="course-badge ${u.favoriteCourse===c.id?'selected':''}" style="--badge-color:${c.color};" onclick="pickFavoriteCourse('${c.id}')">${c.icon} ${escapeHtml(c.title)}</button>`).join("");
+  const bioLen = (u.bio||"").length;
+
   return `
   <div class="onboarding-wrap">
-    <div class="card" style="width:560px; max-width:92vw;">
-      <div class="title" style="text-align:center;">${brandLogo(30)} Profil einrichten</div>
-      <div class="body-text" style="text-align:center; margin-bottom:22px;">Bevor's losgeht: richte dein Profil ein — das sehen andere Nutzer von dir.</div>
+    <div class="card" style="width:600px; max-width:92vw; padding:0; overflow:hidden;">
 
-      <div class="field-label">Banner</div>
-      <div class="banner-drop" style="background:${bannerCssFor(u)};"
-        ondragover="event.preventDefault();" ondrop="handleDropImage(event,'banner')">
-        <label class="file-upload">
-          <span class="file-btn">${icon("upload",16)} Banner hochladen oder hierher ziehen</span>
-          <input type="file" accept="image/*" onchange="readAndUploadImage(this.files[0],'banner')"/>
-        </label>
-      </div>
-      <div style="display:flex; gap:8px; margin:10px 0 6px; flex-wrap:wrap;">${templates}</div>
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
-        <span class="muted">Oder eigene Farbe:</span>
-        <input type="color" value="${u.bannerColor||'#ff7a1a'}" oninput="pickBannerColor(this.value)" style="width:44px; height:32px; padding:2px;"/>
-      </div>
-
-      <div class="field-label">Profilbild</div>
-      <div style="display:flex; align-items:center; gap:16px; margin-bottom:10px;">
-        <div class="pfp-drop" ondragover="event.preventDefault();" ondrop="handleDropImage(event,'picture')">
-          ${u.profilePicture ? `<img src="${u.profilePicture}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : icon("image",26)}
+      <!-- LIVE-VORSCHAU: so sehen dich andere -->
+      <div class="profile-preview">
+        <div class="pp-banner" style="background:${bannerCssFor(u)};"></div>
+        <div class="pp-body">
+          <div class="pp-avatar">${u.profilePicture?`<img src="${u.profilePicture}">`:`<span>${u.avatar}</span>`}</div>
+          <div class="pp-info">
+            <div class="pp-name">${escapeHtml(state.currentUser)} ${u.favoriteCourse?`<span class="course-chip" style="--badge-color:${(COURSES.find(c=>c.id===u.favoriteCourse)||{}).color||'var(--accent)'};">${(COURSES.find(c=>c.id===u.favoriteCourse)||{}).icon||''} ${escapeHtml((COURSES.find(c=>c.id===u.favoriteCourse)||{}).title||'')}</span>`:''}</div>
+            <div class="pp-bio">${escapeHtml(u.bio||"Noch keine Bio...")}</div>
+          </div>
         </div>
-        <label class="file-upload">
-          <span class="file-btn">${icon("upload",16)} Bild hochladen oder ziehen</span>
-          <input type="file" accept="image/*" onchange="readAndUploadImage(this.files[0],'picture')"/>
-        </label>
       </div>
-      <div class="muted" style="margin-bottom:6px;">...oder Emoji-Avatar:</div>
-      <div style="margin-bottom:18px;">${avatars}</div>
 
-      <div class="field-label">Kurze Bio</div>
-      <textarea id="onbBio" rows="2" maxlength="160" placeholder="Erzähl kurz was über dich..." style="width:100%; margin-bottom:20px;">${escapeHtml(u.bio||"")}</textarea>
+      <div style="padding:24px;">
+        <div class="title" style="text-align:center;">${brandLogo(30)} Profil einrichten</div>
+        <div class="body-text" style="text-align:center; margin-bottom:22px;">Bevor's losgeht: richte dein Profil ein — die Vorschau oben zeigt live, wie es aussieht.</div>
 
-      <button class="btn btn-primary" style="width:100%;" onclick="saveOnboarding()">Profil speichern & loslegen ${icon("arrowRight",16)}</button>
+        <div class="field-label">Banner</div>
+        <div class="banner-drop" ondragover="event.preventDefault();" ondrop="handleDropImage(event,'banner')">
+          <label class="file-upload">
+            <span class="file-btn">${icon("upload",16)} Banner hochladen oder hierher ziehen</span>
+            <input type="file" accept="image/*" onchange="readAndUploadImage(this.files[0],'banner')"/>
+          </label>
+        </div>
+        <div style="display:flex; gap:8px; margin:10px 0 6px; flex-wrap:wrap;">${templates}</div>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+          <span class="muted">Oder eigene Farbe:</span>
+          <input type="color" value="${u.bannerColor||'#ff7a1a'}" oninput="pickBannerColor(this.value)" style="width:44px; height:32px; padding:2px;"/>
+        </div>
+
+        <div class="field-label">Profilbild</div>
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:10px;">
+          <div class="pfp-drop" ondragover="event.preventDefault();" ondrop="handleDropImage(event,'picture')">
+            ${u.profilePicture ? `<img src="${u.profilePicture}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : icon("image",26)}
+          </div>
+          <label class="file-upload">
+            <span class="file-btn">${icon("upload",16)} Bild hochladen oder ziehen</span>
+            <input type="file" accept="image/*" onchange="readAndUploadImage(this.files[0],'picture')"/>
+          </label>
+        </div>
+        <div class="muted" style="margin-bottom:6px;">...oder Emoji-Avatar:</div>
+        <div style="margin-bottom:18px;">${avatars}</div>
+
+        <div class="field-label">Lieblingssprache <span class="muted">(optional, als Badge auf deinem Profil)</span></div>
+        <div style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">${courseBadges}</div>
+
+        <div class="field-label" style="display:flex; justify-content:space-between;"><span>Kurze Bio</span><span class="muted" id="bioCounter">${bioLen}/160</span></div>
+        <textarea id="onbBio" rows="2" maxlength="160" placeholder="Erzähl kurz was über dich..." style="width:100%; margin-bottom:20px;"
+          oninput="document.getElementById('bioCounter').textContent=this.value.length+'/160'; state.users[state.currentUser].bio=this.value; document.querySelector('.pp-bio').textContent=this.value||'Noch keine Bio...';">${escapeHtml(u.bio||"")}</textarea>
+
+        <button class="btn btn-primary" style="width:100%;" onclick="saveOnboarding()">Profil speichern & loslegen ${icon("arrowRight",16)}</button>
+      </div>
     </div>
   </div>`;
 }
@@ -875,6 +896,10 @@ function renderProfile(){
       ${u.profilePicture ? `<div><button class="btn-ghost" onclick="removeProfilePicture()">Bild entfernen</button></div>`:""}
       <div class="muted" style="margin:16px 0 8px;">Oder Emoji-Avatar wählen:</div>
       <div>${avatars}</div>
+      <div class="muted" style="margin:18px 0 8px;">Lieblingssprache (Badge auf deinem Profil):</div>
+      <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+        ${COURSES.map(c=>`<button class="course-badge ${u.favoriteCourse===c.id?'selected':''}" style="--badge-color:${c.color};" onclick="saveFavoriteCourse('${c.id}')">${c.icon} ${escapeHtml(c.title)}</button>`).join("")}
+      </div>
     </div>
     <div class="card">
       <div class="section-title">📊 Lernstatistik</div>
