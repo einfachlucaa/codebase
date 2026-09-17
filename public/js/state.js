@@ -57,7 +57,7 @@ function newProgress(){
     streak:0, lastLearnDate:null,
     completedLessons:[], completedExercises:[], unlocked:[],
     totalSolved:0, currentStreak:0, bestStreak:0,
-    bubbleHigh:0, tapHigh:0, memoryHigh:0, quizRushHigh:0,
+    bubbleHigh:0, tapHigh:0, memoryHigh:0, quizRushHigh:0, pacmanHigh:0,
     memoryPerfect:0, quizRushBestStreak:0,
     arcadePlays:0, gamesPlayed:{},
     daily:{date:todayStr(), exToday:0, lessonsToday:0, xpToday:0, claimed:false},

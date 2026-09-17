@@ -112,5 +112,5 @@ function renderQuizRushGame(){
   return html+`</div></div>`;
 }
 function renderQuizRushOnly(){
-  if (state.page==="arcade" && state.arcadeGame==="quizrush") render();
+  if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="quizrush") render();
 }

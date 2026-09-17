@@ -24,6 +24,7 @@ function switchGamesTab(tab){
 function exitArcadeTimers(){
   stopTapTimer();
   stopQuizRushTimer();
+  stopPacmanTimer();
 }
 function openLesson(id){
   state.lessonId = id;
@@ -631,30 +632,6 @@ function openAdminEdit(id){
   render();
 }
 function closeAdminEdit(){ state.adminEditingUser = null; render(); }
-async function saveAdminEdit(id){
-  const val = (fieldId)=>document.getElementById(fieldId).value;
-  const checked = (fieldId)=>document.getElementById(fieldId).checked;
-  try{
-    const { user } = await apiPatch(`/admin/users/${id}/full`, {
-      avatar: val("editAvatar"),
-      bio: val("editBio"),
-      role: val("editRole"),
-      coins: Number(val("editCoins")),
-      gems: Number(val("editGems")),
-      xp: Number(val("editXp")),
-      level: Number(val("editLevel")),
-      subscriptionTier: val("editSubTier"),
-      banned: checked("editBanned"),
-      banReason: val("editBanReason"),
-      banDurationHours: val("editBanDuration") ? Number(val("editBanDuration")) : null,
-    });
-    playSound("notify");
-    state.adminEditingUser = null;
-    await loadAdminUsers();
-    // Bestätigung, damit ein fehlgeschlagenes Speichern nie mehr unbemerkt bleibt
-    await customAlert(`${user.username} wurde erfolgreich gespeichert.`, "Gespeichert ✓");
-  } catch(err){ await customAlert("Speichern fehlgeschlagen: " + err.message, "Fehler"); }
-}
 async function loadUnbanRequests(){
   try{ const {requests} = await apiGet("/admin/unban-requests"); state.adminUnbanRequests = requests; }
   catch(err){ state.adminUnbanRequests = []; }
@@ -662,6 +639,32 @@ async function loadUnbanRequests(){
 }
 async function reviewUnbanRequest(id, approve){
   try{ await apiPost(`/admin/unban-requests/${id}/review`, { approve }); await loadUnbanRequests(); await loadAdminUsers(); }
+  catch(err){ await customAlert(err.message); }
+}
+
+/* ---------- ADMIN: PER-FELD-AUTOSAVE (robuster als ein großes Formular) ---------- */
+async function adminSaveField(id, field, value, statusElId){
+  const statusEl = statusElId ? document.getElementById(statusElId) : null;
+  if (statusEl) statusEl.textContent = "Speichere...";
+  try{
+    const { user } = await apiPatch(`/admin/users/${id}/full`, { [field]: value });
+    if (state.adminEditingUser) Object.assign(state.adminEditingUser, field==="coins"||field==="gems"||field==="xp"||field==="level" ? {} : {});
+    const idx = state.adminUsers.findIndex(u=>u._id===id);
+    if (idx>-1) state.adminUsers[idx] = user;
+    if (state.adminEditingUser && state.adminEditingUser._id===id) state.adminEditingUser = user;
+    if (statusEl) statusEl.textContent = "✓ Gespeichert";
+    playSound("notify");
+  } catch(err){
+    if (statusEl) statusEl.textContent = "✗ " + err.message;
+  }
+}
+async function adminKickUser(id, username){
+  if (!(await customConfirm(`${username} sofort rauswerfen? Login-Sitzung wird ungültig, Account bleibt aktiv.`))) return;
+  try{ await apiPost(`/admin/users/${id}/kick`); await customAlert(`${username} wurde rausgeworfen.`, "Erledigt"); }
+  catch(err){ await customAlert(err.message); }
+}
+async function adminToggleMute(id, muted){
+  try{ await apiPatch(`/admin/users/${id}/mute`, { muted }); await loadAdminUsers(); }
   catch(err){ await customAlert(err.message); }
 }
 

@@ -55,7 +55,7 @@ function restartTap(){
 }
 
 document.addEventListener("keydown",(e)=>{
-  if (state.page==="arcade" && state.arcadeGame==="tap" && state.tap && !state.tap.over){
+  if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="tap" && state.tap && !state.tap.over){
     const map = {ArrowUp:"Up",ArrowDown:"Down",ArrowLeft:"Left",ArrowRight:"Right"};
     if (map[e.key]){ tapAnswer(map[e.key]); e.preventDefault(); }
   }
@@ -97,5 +97,5 @@ function renderTapGame(){
 }
 function renderTapOnly(){
   // Leichter Refresh nur für den Timer-Tick, ohne komplettes Re-Render der ganzen Seite (Performance).
-  if (state.page==="arcade" && state.arcadeGame==="tap") render();
+  if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="tap") render();
 }

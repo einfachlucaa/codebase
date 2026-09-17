@@ -351,12 +351,14 @@ const ARCADE_GAMES = [
   {key:"tap", icon:"⚡", title:"TapTap Arrow", desc:"Reagiere blitzschnell auf die richtige Pfeilrichtung.", cost:15, high:p=>p.tapHigh, start:"startTap", unlockLevel:2},
   {key:"memory", icon:"🧠", title:"Memory Match", desc:"Finde Paare aus C#-Begriff und passender Erklärung.", cost:20, high:p=>p.memoryHigh, start:"startMemory", unlockLevel:3},
   {key:"quizrush", icon:"🚀", title:"Quiz Rush", desc:"Beantworte C#-Fragen im Rennen gegen die Uhr, 3 Leben.", cost:25, high:p=>p.quizRushHigh, start:"startQuizRush", unlockLevel:4},
+  {key:"pacman", icon:"👾", title:"Pac-Man", desc:"Sammle alle Punkte im Labyrinth, weiche den Geistern aus. Power-Pellets machen sie fressbar!", cost:20, high:p=>p.pacmanHigh, start:"startPacman", unlockLevel:1},
 ];
 function renderArcade(){
   if (state.arcadeGame==="bubble") return renderBubbleGame();
   if (state.arcadeGame==="tap") return renderTapGame();
   if (state.arcadeGame==="memory") return renderMemoryGame();
   if (state.arcadeGame==="quizrush") return renderQuizRushGame();
+  if (state.arcadeGame==="pacman") return renderPacmanGame();
   const p = progress();
   let html = `
   <div class="section-title">Arcade-Minispiele</div>
@@ -381,7 +383,7 @@ function renderArcade(){
 const LEADERBOARD_TABS = [
   {key:"xp", label:"⭐ XP"}, {key:"coins", label:"🪙 Coins"}, {key:"gems", label:"💎 Gems"},
   {key:"streak", label:"🔥 Streak"}, {key:"bubble", label:"🫧 Bubble"}, {key:"tap", label:"⚡ TapTap"},
-  {key:"memory", label:"🧠 Memory"}, {key:"quizrush", label:"🚀 QuizRush"},
+  {key:"memory", label:"🧠 Memory"}, {key:"quizrush", label:"🚀 QuizRush"}, {key:"pacman", label:"👾 Pac-Man"},
 ];
 function renderLeaderboard(){
   const rows = state.leaderboardRows;
@@ -470,6 +472,55 @@ function casinoIcon(id, size){
     tails: `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#7a5c00" stroke-width="1.3"/><path d="M12 4a8 8 0 1 0 0.01 0Z" fill="none" stroke="#7a5c00" stroke-width="1.2"/><circle cx="12" cy="12" r="3.4" fill="#7a5c00"/></svg>`,
   };
   return icons[id]||"";
+}
+
+function renderPacmanGame(){
+  const g = state.pacman;
+  if (!g) return `<div class="body-text">Lade...</div>`;
+  const cellPx = 30;
+  let cells = "";
+  g.grid.forEach((row,y)=>{
+    row.forEach((ch,x)=>{
+      const isPlayer = g.player.x===x && g.player.y===y;
+      const ghost = g.ghosts.find(gh=>gh.x===x && gh.y===y);
+      let content = "";
+      let cls = "pm-cell";
+      if (ch==="#") cls += " pm-wall";
+      if (isPlayer){
+        cls += " pm-player pm-" + g.player.dir.toLowerCase();
+      } else if (ghost){
+        content = `<div class="pm-ghost ${g.frightened>0?'pm-frightened':''}" style="--ghost-color:${ghost.color};"></div>`;
+      } else if (ch==="."){
+        content = `<div class="pm-dot"></div>`;
+      } else if (ch==="o"){
+        content = `<div class="pm-pellet"></div>`;
+      }
+      cells += `<div class="${cls}">${content}</div>`;
+    });
+  });
+  return `
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+    <div style="display:flex; gap:20px;">
+      <div><span class="muted">SCORE</span> <b style="color:var(--coin);">${g.score}</b></div>
+      <div><span class="muted">LEBEN</span> <b>${"●".repeat(g.lives)}${"○".repeat(3-g.lives)}</b></div>
+      <div><span class="muted">PUNKTE ÜBRIG</span> <b>${g.dotsLeft}</b></div>
+    </div>
+    <button class="btn btn-secondary" onclick="exitPacman()">Beenden</button>
+  </div>
+  <div class="pm-grid" style="grid-template-columns:repeat(${PACMAN_MAP[0].length}, ${cellPx}px);" tabindex="0">${cells}</div>
+  <div class="muted" style="margin-top:10px;">Steuerung: Pfeiltasten oder WASD</div>
+  <div class="arrow-pad" style="margin-top:10px;">
+    <div></div><button onclick="state.pacman.player.nextDir='Up'">${icon("arrowRight",18)}</button><div></div>
+    <button onclick="state.pacman.player.nextDir='Left'" style="transform:rotate(180deg);">${icon("arrowRight",18)}</button>
+    <div></div>
+    <button onclick="state.pacman.player.nextDir='Right'">${icon("arrowRight",18)}</button>
+    <div></div><button onclick="state.pacman.player.nextDir='Down'" style="transform:rotate(90deg);">${icon("arrowRight",18)}</button><div></div>
+  </div>
+  ${g.over ? `<div class="card gradient-bg casino-result-pop" style="margin-top:16px; text-align:center;">
+    <div style="color:white; font-weight:700; font-size:18px;">${g.won?"🎉 Labyrinth geschafft!":"💀 Game Over"}</div>
+    <div style="color:#ede9ff; margin:6px 0;">Score: ${g.score} · +${g.coinsEarned} Coins</div>
+    <button class="btn" style="background:white; color:var(--accent); margin-top:8px;" onclick="exitPacman()">Zurück zur Übersicht</button>
+  </div>` : ""}`;
 }
 
 /* ---------- RENDER: CASINO ---------- */
@@ -748,22 +799,50 @@ function renderProjectEditor(){
   const p = state.activeProject;
   const lang = PROJECT_LANGS.find(l=>l.id===p.language);
   const out = state.codeOutput;
+  const lineCount = (p.code||"").split("\n").length;
+  const lineNumbers = Array.from({length:lineCount}, (_,i)=>i+1).join("\n");
   return `
   <button class="btn btn-secondary" onclick="closeProject()" style="margin-bottom:14px;">← Zurück</button>
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-    <div class="title" style="margin:0;">${icon("terminal",22)} ${escapeHtml(p.name)} <span class="pill">${lang?lang.label:p.language}</span></div>
-    <div style="display:flex; gap:8px;">
-      <button class="btn btn-primary" ${state.codeRunning?"disabled":""} onclick="runActiveProject()">${icon("play",16)} ${state.codeRunning?"Läuft...":"Ausführen"}</button>
-      <button class="btn btn-secondary" style="color:var(--danger);" onclick="deleteActiveProject()">${icon("trash",16)}</button>
+  <div class="ide-window">
+    <div class="ide-titlebar">
+      <div class="ide-dots"><span></span><span></span><span></span></div>
+      <div class="ide-tab">${icon("terminal",13)} ${escapeHtml(p.name)}</div>
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" style="padding:8px 16px;" ${state.codeRunning?"disabled":""} onclick="runActiveProject()">${icon("play",15)} ${state.codeRunning?"Läuft...":"Ausführen"}</button>
+      <button class="btn btn-secondary" style="padding:8px 10px;" onclick="deleteActiveProject()">${icon("trash",15)}</button>
+    </div>
+    <div class="ide-body">
+      <div class="ide-explorer">
+        <div class="ide-explorer-title">Projekt</div>
+        <div class="ide-file active">${icon("terminal",14)} ${escapeHtml(p.name)}</div>
+      </div>
+      <div class="ide-editor-wrap">
+        <div class="ide-gutter" id="ideGutter">${lineNumbers}</div>
+        <textarea class="code-editor ide-textarea" id="ideTextarea" spellcheck="false"
+          oninput="editProjectCode(this.value); syncIdeGutter();"
+          onscroll="document.getElementById('ideGutter').scrollTop=this.scrollTop;">${escapeHtml(p.code||"")}</textarea>
+      </div>
+    </div>
+    <div class="ide-statusbar">
+      <span>${lang?lang.label:p.language}</span>
+      <span class="muted">${lineCount} Zeilen</span>
+      <span style="flex:1;"></span>
+      <span class="muted">Auto-Save aktiv</span>
     </div>
   </div>
-  <textarea class="code-editor" spellcheck="false" oninput="editProjectCode(this.value)">${escapeHtml(p.code||"")}</textarea>
-  <div class="section-title" style="margin-top:18px;">Ausgabe</div>
-  <div class="code-block" style="min-height:80px; white-space:pre-wrap;">${
+  <div class="section-title" style="margin-top:18px;">${icon("activity",16)} Ausgabe</div>
+  <div class="code-block ide-output" style="min-height:90px; white-space:pre-wrap;">${
     !out ? `<span class="muted">Noch nichts ausgeführt — klick auf "Ausführen".</span>`
     : out.compileStderr ? `<span style="color:var(--danger);">Compile-Fehler:\n${escapeHtml(out.compileStderr)}</span>`
     : (escapeHtml(out.stdout||"") + (out.stderr?`\n<span style="color:var(--danger);">${escapeHtml(out.stderr)}</span>`:"") || `<span class="muted">(keine Ausgabe)</span>`)
   }</div>`;
+}
+function syncIdeGutter(){
+  const ta = document.getElementById("ideTextarea");
+  const gutter = document.getElementById("ideGutter");
+  if (!ta || !gutter) return;
+  const lines = ta.value.split("\n").length;
+  gutter.textContent = Array.from({length:lines}, (_,i)=>i+1).join("\n");
 }
 
 /* ---------- RENDER: ADMIN-PANEL ---------- */
@@ -796,42 +875,64 @@ function renderAdminUnban(){
 function renderAdminEditModal(){
   const u = state.adminEditingUser;
   if (!u) return "";
+  const S = (field)=>`stat_${field}`; // Status-Span-ID je Feld
   return `
   <div class="modal-overlay">
-    <div class="modal-box" style="width:420px; text-align:left; max-height:85vh; overflow-y:auto;">
-      <div class="section-title">✏️ ${escapeHtml(u.username)} bearbeiten</div>
-      <div class="field-label" style="margin-top:12px;">Avatar (Emoji)</div>
-      <input id="editAvatar" type="text" value="${escapeHtml(u.avatar)}"/>
-      <div class="field-label" style="margin-top:10px;">Bio</div>
-      <textarea id="editBio" rows="2" style="width:100%;">${escapeHtml(u.bio||"")}</textarea>
-      <div class="field-label" style="margin-top:10px;">Rolle</div>
-      <select id="editRole" style="width:100%; padding:10px;">
+    <div class="modal-box" style="width:440px; text-align:left; max-height:85vh; overflow-y:auto;">
+      <div class="section-title">${icon("edit",16)} ${escapeHtml(u.username)} bearbeiten</div>
+      <div class="muted" style="margin-bottom:10px;">Jedes Feld speichert sofort einzeln beim Verlassen — kein Sammel-Klick nötig.</div>
+
+      <div class="field-label" style="display:flex; justify-content:space-between;">Avatar (Emoji) <span class="muted" id="${S('avatar')}"></span></div>
+      <input value="${escapeHtml(u.avatar)}" onchange="adminSaveField('${u._id}','avatar',this.value,'${S('avatar')}')"/>
+
+      <div class="field-label" style="display:flex; justify-content:space-between; margin-top:10px;">Bio <span class="muted" id="${S('bio')}"></span></div>
+      <textarea rows="2" style="width:100%;" onchange="adminSaveField('${u._id}','bio',this.value,'${S('bio')}')">${escapeHtml(u.bio||"")}</textarea>
+
+      <div class="field-label" style="display:flex; justify-content:space-between; margin-top:10px;">Rolle <span class="muted" id="${S('role')}"></span></div>
+      <select style="width:100%; padding:10px;" onchange="adminSaveField('${u._id}','role',this.value,'${S('role')}')">
         ${(state.adminRoles||["user","moderator","admin"]).map(r=>`<option value="${r}" ${u.role===r?"selected":""}>${r}</option>`).join("")}
       </select>
+
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-        <div><div class="field-label">Coins</div><input id="editCoins" type="number" min="0" max="10000000" value="${u.progress.coins}"/></div>
-        <div><div class="field-label">Gems</div><input id="editGems" type="number" min="0" max="10000000" value="${u.progress.gems}"/></div>
-        <div><div class="field-label">XP</div><input id="editXp" type="number" min="0" max="10000000" value="${u.progress.xp}"/></div>
-        <div><div class="field-label">Level</div><input id="editLevel" type="number" value="${u.progress.level}"/></div>
+        <div><div class="field-label" style="display:flex; justify-content:space-between;">Coins <span class="muted" id="${S('coins')}"></span></div>
+          <input type="number" min="0" max="10000000" value="${u.progress.coins}" onchange="adminSaveField('${u._id}','coins',Number(this.value),'${S('coins')}')"/></div>
+        <div><div class="field-label" style="display:flex; justify-content:space-between;">Gems <span class="muted" id="${S('gems')}"></span></div>
+          <input type="number" min="0" max="10000000" value="${u.progress.gems}" onchange="adminSaveField('${u._id}','gems',Number(this.value),'${S('gems')}')"/></div>
+        <div><div class="field-label" style="display:flex; justify-content:space-between;">XP <span class="muted" id="${S('xp')}"></span></div>
+          <input type="number" min="0" max="10000000" value="${u.progress.xp}" onchange="adminSaveField('${u._id}','xp',Number(this.value),'${S('xp')}')"/></div>
+        <div><div class="field-label" style="display:flex; justify-content:space-between;">Level <span class="muted" id="${S('level')}"></span></div>
+          <input type="number" min="1" value="${u.progress.level}" onchange="adminSaveField('${u._id}','level',Number(this.value),'${S('level')}')"/></div>
       </div>
-      <div class="field-label" style="margin-top:10px;">Abo-Stufe</div>
-      <select id="editSubTier" style="width:100%; padding:10px;">
+
+      <div class="field-label" style="display:flex; justify-content:space-between; margin-top:10px;">Abo-Stufe <span class="muted" id="${S('subscriptionTier')}"></span></div>
+      <select style="width:100%; padding:10px;" onchange="adminSaveField('${u._id}','subscriptionTier',this.value,'${S('subscriptionTier')}')">
         <option value="free" ${(!u.subscription||u.subscription.tier==='free')?"selected":""}>Learn Free</option>
         <option value="basic" ${u.subscription&&u.subscription.tier==='basic'?"selected":""}>Learn Basic</option>
         <option value="pro" ${u.subscription&&u.subscription.tier==='pro'?"selected":""}>Learn Pro</option>
       </select>
-      <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
-        <input id="editBanned" type="checkbox" ${u.banned?"checked":""} style="width:auto;"/>
-        <label for="editBanned">Gesperrt</label>
+
+      <div class="section-title" style="margin-top:20px; font-size:14px;">Moderation</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">
+        <button class="btn btn-secondary" onclick="adminToggleMute('${u._id}', ${!u.isMuted})">${u.isMuted?icon("check",14)+' Entstummen':icon("ban",14)+' Stummschalten'}</button>
+        <button class="btn btn-secondary" onclick="adminKickUser('${u._id}','${escapeHtml(u.username)}')">${icon("logout",14)} Rauswerfen</button>
       </div>
-      <div class="field-label" style="margin-top:8px;">Sperrgrund</div>
-      <input id="editBanReason" type="text" value="${escapeHtml(u.banReason||"")}"/>
-      <div class="field-label" style="margin-top:8px;">Sperrdauer in Stunden (leer = dauerhaft)</div>
-      <input id="editBanDuration" type="number" min="1" placeholder="z.B. 24"/>
-      <div style="display:flex; gap:10px; margin-top:18px;">
-        <button class="btn btn-secondary" style="flex:1;" onclick="closeAdminEdit()">Abbrechen</button>
-        <button class="btn btn-primary" style="flex:1;" onclick="saveAdminEdit('${u._id}')">${icon("check",16)} Speichern</button>
+      ${u.warnings && u.warnings.length ? `
+        <div class="muted" style="margin-bottom:6px;">Verwarnungen (${u.warnings.length}):</div>
+        <div style="max-height:100px; overflow-y:auto; margin-bottom:10px;">
+          ${u.warnings.map(w=>`<div class="body-text" style="font-size:12px; padding:4px 0; border-bottom:1px solid var(--border);">"${escapeHtml(w.reason)}" — ${escapeHtml(w.byAdmin)}, ${new Date(w.at).toLocaleDateString('de-DE')}</div>`).join("")}
+        </div>` : ""}
+
+      <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+        <input id="editBanned" type="checkbox" ${u.banned?"checked":""} style="width:auto;"
+          onchange="adminSaveField('${u._id}','banned',this.checked,'${S('banned')}')"/>
+        <label for="editBanned">Gesperrt</label> <span class="muted" id="${S('banned')}"></span>
       </div>
+      <div class="field-label" style="margin-top:8px;">Sperrgrund <span class="muted" id="${S('banReason')}"></span></div>
+      <input value="${escapeHtml(u.banReason||"")}" onchange="adminSaveField('${u._id}','banReason',this.value,'${S('banReason')}')"/>
+      <div class="field-label" style="margin-top:8px;">Sperrdauer in Stunden (leer = dauerhaft, nur bei neuer Sperre)</div>
+      <input type="number" min="1" placeholder="z.B. 24" onchange="adminSaveField('${u._id}','banDurationHours',this.value?Number(this.value):null,'${S('banDurationHours')}')"/>
+
+      <button class="btn btn-primary" style="width:100%; margin-top:18px;" onclick="closeAdminEdit()">Fertig</button>
     </div>
   </div>`;
 }
@@ -847,6 +948,7 @@ function renderAdminUsersTab(){
       <td style="padding:10px;"><span style="font-size:18px;">${u.avatar}</span> <b>${escapeHtml(u.username)}</b>
         ${u.warnings && u.warnings.length ? `<span title="${u.warnings.length} Verwarnung(en)" style="margin-left:4px;">⚠️${u.warnings.length}</span>`:""}
         ${u.flagged ? `<span title="${escapeHtml(u.flagReason||'')}" style="margin-left:4px;">🚩</span>`:""}
+        ${u.isMuted ? `<span title="Stummgeschaltet" style="margin-left:4px;">${icon("ban",13)}</span>`:""}
       </td>
       <td>
         <select onchange="adminSetRole('${u._id}', this.value)" ${isSelf?"disabled":""}>
@@ -865,7 +967,9 @@ function renderAdminUsersTab(){
         <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminWarnUser('${u._id}')">⚠️ Verwarnen</button>
         ${u.warnings && u.warnings.length ? `<button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminClearWarnings('${u._id}')">Warns löschen</button>`:""}
         ${u.flagged ? `<button class="btn btn-secondary" style="padding:6px 10px; color:var(--warning);" onclick="adminClearFlag('${u._id}')">🚩 Entwarnen</button>`:""}
-        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminViewMessages('${u._id}', '${escapeHtml(u.username)}')">💬 Nachrichten</button>
+        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminViewMessages('${u._id}', '${escapeHtml(u.username)}')">${icon("chat",14)} Nachrichten</button>
+        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminToggleMute('${u._id}', ${!u.isMuted})">${u.isMuted?icon("check",14):icon("ban",14)} ${u.isMuted?'Entstummen':'Stumm'}</button>
+        <button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminKickUser('${u._id}','${escapeHtml(u.username)}')">${icon("logout",14)} Kick</button>
         ${u.profilePicture ? `<button class="btn btn-secondary" style="padding:6px 10px;" onclick="adminResetPicture('${u._id}')">🖼️ Bild löschen</button>`:""}
         <button class="btn btn-secondary" style="padding:6px 10px;" ${isSelf?"disabled":""} onclick="adminSetBanned('${u._id}', ${!u.banned})">${u.banned?"Entsperren":"Sperren"}</button>
         <button class="btn btn-secondary" style="padding:6px 10px; color:var(--danger);" ${isSelf?"disabled":""} onclick="adminDeleteUser('${u._id}', '${escapeHtml(u.username)}')">🗑️</button>
