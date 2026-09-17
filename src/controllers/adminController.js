@@ -109,6 +109,25 @@ const listUserMessages = asyncHandler(async (req, res) => {
   res.json({ username: user.username, messages });
 });
 
+// Sofortiger Rauswurf: bestehende Login-Sitzung wird ungültig, ohne den
+// Account zu sperren — der Nutzer muss sich nur neu einloggen.
+const kickUser = asyncHandler(async (req, res) => {
+  if (String(req.user._id) === req.params.id) throw new ApiError(400, "Du kannst dich nicht selbst rauswerfen.");
+  const user = await User.findByIdAndUpdate(req.params.id, { $inc: { tokenVersion: 1 } }, { new: true });
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  logActivity(req.user, "role_change", { targetUser: user.username, action: "kick" });
+  res.json({ user });
+});
+
+// Stummschalten: Login bleibt möglich, aber keine Chat-Nachrichten mehr.
+const muteUser = asyncHandler(async (req, res) => {
+  const { muted } = req.body;
+  const user = await User.findByIdAndUpdate(req.params.id, { isMuted: !!muted }, { new: true });
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  logActivity(req.user, "role_change", { targetUser: user.username, action: muted ? "mute" : "unmute" });
+  res.json({ user });
+});
+
 const resetPicture = asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(req.params.id, { profilePicture: null }, { new: true });
   if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
@@ -131,6 +150,7 @@ const fullUpdate = asyncHandler(async (req, res) => {
   if (b.level !== undefined) user.progress.level = Math.max(1, num(b.level, user.progress.level));
   if (b.avatar !== undefined) user.avatar = String(b.avatar).slice(0, 8);
   if (b.bio !== undefined) user.bio = String(b.bio).slice(0, 160);
+  if (b.isMuted !== undefined) user.isMuted = !!b.isMuted;
   if (b.role !== undefined && ROLES.includes(b.role) && !(isSelf && b.role !== "admin")) user.role = b.role;
   if (b.subscriptionTier !== undefined && ["free", "basic", "pro"].includes(b.subscriptionTier)) {
     user.subscription.tier = b.subscriptionTier;
@@ -231,5 +251,5 @@ const stats = asyncHandler(async (req, res) => {
 module.exports = {
   listUsers, getUser, editStats, setRole, setBanned, deleteUser, stats,
   warnUser, clearWarnings, clearFlag, listActivity, listUserMessages, resetPicture,
-  fullUpdate, listUnbanRequests, reviewUnbanRequest,
+  fullUpdate, listUnbanRequests, reviewUnbanRequest, kickUser, muteUser,
 };

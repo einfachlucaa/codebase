@@ -13,8 +13,8 @@ const COOKIE_OPTIONS = {
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 Tage
 };
 
-function sendAuthCookie(res, userId) {
-  const token = signToken(userId);
+function sendAuthCookie(res, userId, tokenVersion) {
+  const token = signToken(userId, tokenVersion);
   res.cookie(config.cookieName, token, COOKIE_OPTIONS);
 }
 
@@ -59,7 +59,7 @@ const register = asyncHandler(async (req, res) => {
   await user.setPassword(password);
   await user.save();
 
-  sendAuthCookie(res, user._id);
+  sendAuthCookie(res, user._id, user.tokenVersion);
   logActivity(user, "register", { ip });
   res.status(201).json({ user });
 });
@@ -91,7 +91,7 @@ const login = asyncHandler(async (req, res) => {
   if (req.ip) user.lastLoginIp = req.ip;
   await user.save();
 
-  sendAuthCookie(res, user._id);
+  sendAuthCookie(res, user._id, user.tokenVersion);
   logActivity(user, "login", { ip: req.ip });
   res.json({ user });
 });

@@ -12,6 +12,7 @@ const BOARDS = {
   tap: { sort: { "progress.tapHigh": -1 }, scoreField: "tapHigh", label: "⚡ TapTap Arrow" },
   memory: { sort: { "progress.memoryHigh": -1 }, scoreField: "memoryHigh", label: "🧠 Memory Match" },
   quizrush: { sort: { "progress.quizRushHigh": -1 }, scoreField: "quizRushHigh", label: "🚀 Quiz Rush" },
+  pacman: { sort: { "progress.pacmanHigh": -1 }, scoreField: "pacmanHigh", label: "👾 Pac-Man" },
 };
 
 const getLeaderboard = asyncHandler(async (req, res) => {
@@ -32,7 +33,7 @@ const getLeaderboard = asyncHandler(async (req, res) => {
     const values = {
       totalXp, coins: u.progress.coins, gems: u.progress.gems, streak: u.progress.streak,
       bubbleHigh: u.progress.bubbleHigh, tapHigh: u.progress.tapHigh,
-      memoryHigh: u.progress.memoryHigh, quizRushHigh: u.progress.quizRushHigh,
+      memoryHigh: u.progress.memoryHigh, quizRushHigh: u.progress.quizRushHigh, pacmanHigh: u.progress.pacmanHigh,
     };
     return {
       username: u.username,

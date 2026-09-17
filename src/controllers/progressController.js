@@ -8,7 +8,7 @@ const ALLOWED_FIELDS = [
   "level", "xp", "coins", "gems", "totalCoinsEarned", "streak", "lastLearnDate",
   "completedLessons", "completedExercises", "unlocked", "totalSolved",
   "currentStreak", "bestStreak", "bubbleHigh", "tapHigh", "memoryHigh",
-  "quizRushHigh", "memoryPerfect", "quizRushBestStreak", "arcadePlays",
+  "quizRushHigh", "memoryPerfect", "quizRushBestStreak", "arcadePlays", "pacmanHigh",
   "gamesPlayed", "daily",
 ];
 

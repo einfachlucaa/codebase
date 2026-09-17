@@ -1,8 +1,8 @@
 const jwt = require("jsonwebtoken");
 const config = require("../../config/config");
 
-function signToken(userId) {
-  return jwt.sign({ sub: userId }, config.jwt.secret, {
+function signToken(userId, tokenVersion) {
+  return jwt.sign({ sub: userId, tv: tokenVersion || 0 }, config.jwt.secret, {
     expiresIn: config.jwt.expiresIn,
   });
 }

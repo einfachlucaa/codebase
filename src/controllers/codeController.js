@@ -17,6 +17,10 @@ const LANGUAGE_ALIASES = {
   lua: ["lua"],
   csharp: ["csharp", "c#", "cs", "mono"],
 };
+const FILE_NAMES = {
+  python: "main.py", javascript: "main.js", java: "Main.java",
+  cpp: "main.cpp", lua: "main.lua", csharp: "main.cs",
+};
 const MAX_CODE_LENGTH = 20000;
 
 let runtimeCache = null;
@@ -50,11 +54,15 @@ const runCode = asyncHandler(async (req, res) => {
     body: JSON.stringify({
       language: rt.language,
       version: rt.version,
-      files: [{ name: "main", content: code }],
+      files: [{ name: FILE_NAMES[language] || "main.txt", content: code }],
       stdin: String(stdin || "").slice(0, 2000),
     }),
   });
-  if (!pistonRes.ok) throw new ApiError(502, "Ausführung fehlgeschlagen (Dienst antwortete mit Fehler).");
+  if (!pistonRes.ok) {
+    let detail = "";
+    try{ const errBody = await pistonRes.json(); detail = errBody.message ? ` (${errBody.message})` : ""; } catch{}
+    throw new ApiError(502, `Ausführung fehlgeschlagen${detail || ` (Status ${pistonRes.status})`}.`);
+  }
   const data = await pistonRes.json();
 
   res.json({

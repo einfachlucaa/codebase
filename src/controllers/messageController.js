@@ -40,6 +40,7 @@ const getConversation = asyncHandler(async (req, res) => {
 });
 
 const sendMessage = asyncHandler(async (req, res) => {
+  if (req.user.isMuted) throw new ApiError(403, "Du wurdest stummgeschaltet und kannst aktuell keine Nachrichten senden.");
   const otherId = req.params.id;
   if (otherId === String(req.user._id)) throw new ApiError(400, "Du kannst dir nicht selbst schreiben.");
   await assertFriends(req.user._id, otherId);

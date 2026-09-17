@@ -24,6 +24,11 @@ const requireAuth = asyncHandler(async (req, res, next) => {
     res.clearCookie(config.cookieName);
     throw new ApiError(401, "Nutzer existiert nicht mehr.");
   }
+  // Admin hat die Sitzung per "Kick" beendet -> Token-Version stimmt nicht mehr überein.
+  if ((payload.tv || 0) !== (user.tokenVersion || 0)) {
+    res.clearCookie(config.cookieName);
+    throw new ApiError(401, "Sitzung wurde von einem Admin beendet. Bitte erneut anmelden.");
+  }
   if (user.banned) {
     if (user.bannedUntil && new Date(user.bannedUntil) <= new Date()) {
       user.banned = false; user.banReason = ""; user.bannedUntil = null; user.bannedIps = [];

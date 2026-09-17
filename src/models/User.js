@@ -24,6 +24,7 @@ const ProgressSchema = new mongoose.Schema(
     tapHigh: { type: Number, default: 0 },
     memoryHigh: { type: Number, default: 0 },
     quizRushHigh: { type: Number, default: 0 },
+    pacmanHigh: { type: Number, default: 0 },
     memoryPerfect: { type: Number, default: 0 },
     quizRushBestStreak: { type: Number, default: 0 },
     arcadePlays: { type: Number, default: 0 },
@@ -80,6 +81,8 @@ const UserSchema = new mongoose.Schema(
     banned: { type: Boolean, default: false },
     banReason: { type: String, default: "" },
     bannedUntil: { type: Date, default: null }, // null = dauerhaft gesperrt (falls banned=true)
+    isMuted: { type: Boolean, default: false }, // darf sich einloggen, aber keine Chat-Nachrichten senden
+    tokenVersion: { type: Number, default: 0 }, // hochzählen = alle bestehenden Logins dieses Nutzers sofort ungültig ("Kick")
     warnings: { type: [WarningSchema], default: [] },
     avatar: { type: String, default: "🧑‍💻" },
     profilePicture: { type: String, default: null }, // Base64-Data-URI, serverseitig geprüft (Größe/Format)

@@ -19,6 +19,8 @@ router.patch("/users/:id/clear-flag", authorize(PERMISSIONS.USERS_EDIT), ctrl.cl
 router.get("/users/:id/messages", authorize(PERMISSIONS.MESSAGES_VIEW), ctrl.listUserMessages);
 router.patch("/users/:id/reset-picture", authorize(PERMISSIONS.USERS_EDIT), ctrl.resetPicture);
 router.patch("/users/:id/full", authorize(PERMISSIONS.USERS_EDIT), ctrl.fullUpdate);
+router.post("/users/:id/kick", authorize(PERMISSIONS.USERS_BAN), ctrl.kickUser);
+router.patch("/users/:id/mute", authorize(PERMISSIONS.USERS_BAN), ctrl.muteUser);
 router.get("/unban-requests", authorize(PERMISSIONS.USERS_BAN), ctrl.listUnbanRequests);
 router.post("/unban-requests/:id/review", authorize(PERMISSIONS.USERS_BAN), ctrl.reviewUnbanRequest);
 router.delete("/users/:id", authorize(PERMISSIONS.USERS_DELETE), ctrl.deleteUser);
