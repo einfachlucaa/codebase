@@ -31,7 +31,7 @@ function pacmanCountDots(){
 }
 
 function startPacman(){
-  if (!spendForGame("pacman", PACMAN_COST)) return;
+  spendForGame("pacman");
   state.arcadeGame = "pacman";
   const grid = PACMAN_MAP.map(row=>row.split(""));
   state.pacman = {
@@ -44,6 +44,7 @@ function startPacman(){
     ],
     score:0, lives:3, dotsLeft: pacmanCountDots(), over:false, won:false,
     frightened:0, // Ticks, in denen Geister fliehen (nach Power-Pellet)
+    startedAt: Date.now(),
   };
   render();
   startPacmanTimer();
@@ -127,8 +128,8 @@ function pacmanEndGame(won){
   stopPacmanTimer();
   const p = progress();
   p.pacmanHigh = Math.max(p.pacmanHigh||0, g.score);
-  const coinsEarned = payoutForGame(g.score);
-  g.coinsEarned = coinsEarned;
+  const xpEarned = payoutForGame(g.score) + awardPlaytimeXp(g.startedAt);
+  g.xpEarned = xpEarned;
   playSound(won ? "win" : "lose");
   refreshLiveArea();
 }

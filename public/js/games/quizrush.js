@@ -7,11 +7,11 @@ function quizRushPool(){
   return Object.keys(EXERCISES).filter(id=>EXERCISES[id].type==="mc");
 }
 function startQuizRush(){
-  if (!spendForGame("quizrush", QUIZRUSH_COST)) return;
+  if (!spendForGame("quizrush")) return;
   state.arcadeGame="quizrush";
   state.quizrush = {
     remaining: shuffle(quizRushPool()), score:0, streak:0, lives:3, over:false,
-    current:null, duration:9, timeLeft:9, feedback:"", coinsEarned:0,
+    current:null, duration:9, timeLeft:9, feedback:"", xpEarned:0, startedAt:Date.now(),
   };
   nextQuizRushQuestion();
   render();
@@ -66,12 +66,12 @@ function endQuizRush(){
   const q = state.quizrush, p = progress();
   q.over = true; stopQuizRushTimer();
   if (q.score>p.quizRushHigh) p.quizRushHigh = q.score;
-  q.coinsEarned = payoutForGame(q.score);
+  q.xpEarned = payoutForGame(q.score) + awardPlaytimeXp(q.startedAt);
 }
 function restartQuizRush(){
   state.quizrush = {
     remaining: shuffle(quizRushPool()), score:0, streak:0, lives:3, over:false,
-    current:null, duration:9, timeLeft:9, feedback:"", coinsEarned:0,
+    current:null, duration:9, timeLeft:9, feedback:"", xpEarned:0, startedAt:Date.now(),
   };
   nextQuizRushQuestion(); render(); startQuizRushTimer();
 }
@@ -105,7 +105,7 @@ function renderQuizRushGame(){
   } else {
     html += `<div class="title">🎉 Runde beendet!</div>
     <div class="body-text">Punktzahl: ${q.score}</div>
-    <div style="color:var(--coin); margin:6px 0 20px;">+${q.coinsEarned} Coins verdient</div>
+    <div style="color:var(--xp); margin:6px 0 20px;">+${q.xpEarned} XP verdient</div>
     <button class="btn btn-primary" onclick="restartQuizRush()" style="margin-right:10px;">Nochmal spielen</button>
     <button class="btn btn-secondary" onclick="exitArcadeGame()">Zurück zur Arcade</button>`;
   }

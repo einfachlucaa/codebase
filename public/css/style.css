@@ -402,15 +402,21 @@ table.lb tr:hover td { background: rgba(118,118,128,0.08); }
 
 /* ---------- CASINO: SPIELKARTEN ---------- */
 .playing-card {
-  width: 58px; height: 82px; background: #f5f5f7; border-radius: 8px;
+  width: 64px; height: 90px; background: #f5f5f7; border-radius: 9px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.35); border: 1px solid rgba(0,0,0,0.08);
 }
 .playing-card.back {
-  background: repeating-linear-gradient(45deg, var(--ios-indigo), var(--ios-indigo) 6px, var(--ios-blue) 6px, var(--ios-blue) 12px);
-  border: 2px solid rgba(255,255,255,0.3);
+  /* bewusst FESTE Blau/Weiß-Werte statt --ios-blue/--ios-indigo (die sind im
+     Orange-Theme umbelegt und würden hier fast unsichtbar verschmelzen) */
+  background: repeating-linear-gradient(45deg, #1c3faa, #1c3faa 7px, #2f5fe0 7px, #2f5fe0 14px);
+  border: 3px solid #f5f5f7; box-shadow: 0 4px 10px rgba(0,0,0,0.4), inset 0 0 0 2px rgba(0,0,0,0.25);
 }
-.pc-rank { font-weight: 800; font-size: 20px; }
+.playing-card.back::after {
+  content: "?"; color: rgba(255,255,255,0.85); font-size: 26px; font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+.pc-rank { font-weight: 800; font-size: 22px; }
 
 /* ---------- ONBOARDING ---------- */
 .onboarding-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 30px; }
@@ -565,12 +571,12 @@ body::before {
 
 /* ---------- ARCADE: PAC-MAN ---------- */
 .pm-grid { display: grid; gap: 0; background: #0a0a0f; border-radius: var(--radius-sm); padding: 6px; width: max-content; }
-.pm-cell { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; position: relative; }
+.pm-cell { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; position: relative; }
 .pm-wall { background: #16163a; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(94,92,230,0.35); }
-.pm-dot { width: 6px; height: 6px; border-radius: 50%; background: #ffd60a; }
-.pm-pellet { width: 12px; height: 12px; border-radius: 50%; background: #ffd60a; box-shadow: 0 0 8px #ffd60a; animation: pmPulse 0.7s ease-in-out infinite; }
+.pm-dot { width: 8px; height: 8px; border-radius: 50%; background: #ffd60a; }
+.pm-pellet { width: 16px; height: 16px; border-radius: 50%; background: #ffd60a; box-shadow: 0 0 8px #ffd60a; animation: pmPulse 0.7s ease-in-out infinite; }
 @keyframes pmPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }
-.pm-player { background: #ffd60a; border-radius: 50%; width: 24px; height: 24px; position: relative; }
+.pm-player { background: #ffd60a; border-radius: 50%; width: 34px; height: 34px; position: relative; }
 .pm-player::before, .pm-player::after {
   content: ""; position: absolute; width: 0; height: 0; border-style: solid;
 }
@@ -578,7 +584,7 @@ body::before {
 .pm-player.pm-left::before { border-width: 8px 0 8px 10px; border-color: transparent transparent transparent #17171a; top: 4px; left: 2px; }
 .pm-player.pm-up::before { border-width: 0 8px 10px 8px; border-color: transparent transparent #17171a transparent; top: 2px; left: 4px; }
 .pm-player.pm-down::before { border-width: 10px 8px 0 8px; border-color: #17171a transparent transparent transparent; top: 12px; left: 4px; }
-.pm-ghost { width: 24px; height: 22px; border-radius: 12px 12px 0 0; background: var(--ghost-color, #ff453a); position: relative; }
+.pm-ghost { width: 34px; height: 30px; border-radius: 12px 12px 0 0; background: var(--ghost-color, #ff453a); position: relative; }
 .pm-ghost::after {
   content: ""; position: absolute; bottom: -4px; left: 0; right: 0; height: 6px;
   background: inherit; clip-path: polygon(0 0,10% 100%,20% 0,30% 100%,40% 0,50% 100%,60% 0,70% 100%,80% 0,90% 100%,100% 0);
@@ -631,3 +637,10 @@ body::before {
   animation: reviewPulse 2.2s ease-in-out infinite;
 }
 @keyframes reviewPulse { 0%, 100% { box-shadow: 0 0 0 rgba(94,92,230,0); } 50% { box-shadow: 0 0 16px rgba(94,92,230,0.35); } }
+
+/* ---------- ARCADE: SNAKE ---------- */
+.sn-grid { display: grid; gap: 1px; background: #0a0a0f; border-radius: var(--radius-sm); padding: 6px; width: max-content; }
+.sn-cell { width: 26px; height: 26px; border-radius: 3px; background: rgba(255,255,255,0.03); }
+.sn-body { background: var(--ios-green); border-radius: 6px; }
+.sn-head { background: #6dffb0; border-radius: 8px; box-shadow: 0 0 8px rgba(109,255,176,0.6); }
+.sn-food { background: var(--ios-red); border-radius: 50%; box-shadow: 0 0 8px rgba(255,69,58,0.6); }

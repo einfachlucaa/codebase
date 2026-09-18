@@ -65,7 +65,7 @@ function newProgress(){
     streak:0, lastLearnDate:null,
     completedLessons:[], completedExercises:[], unlocked:[],
     totalSolved:0, currentStreak:0, bestStreak:0,
-    bubbleHigh:0, tapHigh:0, memoryHigh:0, quizRushHigh:0, pacmanHigh:0,
+    bubbleHigh:0, tapHigh:0, memoryHigh:0, quizRushHigh:0, pacmanHigh:0, snakeHigh:0,
     memoryPerfect:0, quizRushBestStreak:0,
     arcadePlays:0, gamesPlayed:{},
     exerciseCooldowns:{}, lessonCooldowns:{}, // exId/lessonId -> Zeitpunkt letzter Belohnung (24h-Sperre für Wiederholungen)
@@ -170,21 +170,34 @@ function exerciseCourse(exId){
   return (lesson && lesson.course) || "csharp";
 }
 
-/* Gemeinsamer Einsatz-/Buchungs-Helfer für alle Arcade-Spiele.
-   gameKey wird für die "Allrounder"-Errungenschaft mitgezählt. */
-function spendForGame(gameKey, cost){
+/* Arcade-Spiele sind komplett kostenlos (kein Coin-Einsatz mehr) und geben
+   NUR NOCH XP, niemals Coins — Coins verdient man ausschließlich in der
+   Factory. gameKey wird für die "Allrounder"-Errungenschaft mitgezählt. */
+function spendForGame(gameKey){
   const p = progress();
-  if (p.coins < cost) return false;
-  p.coins -= cost;
   p.arcadePlays++;
   p.gamesPlayed[gameKey] = (p.gamesPlayed[gameKey]||0) + 1;
   checkAchievements(p);
   return true;
 }
+// Score-basierte XP (gedeckelt, damit Score-Farmen nicht zur Geldmaschine wird)
+// + eine kleine, ZEIT-basierte Bonus-XP fürs reine Spielen (unabhängig vom
+// Skill) — siehe awardPlaytimeXp(). Beides zusammen ersetzt die frühere Coin-Auszahlung.
 function payoutForGame(score){
   const p = progress();
-  const coinsEarned = Math.max(0, Math.floor(score/10));
-  addCoins(p, coinsEarned);
+  const xpEarned = Math.max(0, Math.min(30, Math.floor(score/15)));
+  addXp(p, xpEarned);
   checkAchievements(p);
-  return coinsEarned;
+  return xpEarned;
+}
+// Belohnt reine Spielzeit mit etwas XP (max. 5 Minuten pro Runde gewertet,
+// damit AFK-Stehenlassen nichts bringt). Gibt KEINE Coins.
+function awardPlaytimeXp(startedAtMs){
+  if (!startedAtMs) return 0;
+  const p = progress();
+  const seconds = Math.min(300, Math.max(0, (Date.now()-startedAtMs)/1000));
+  const minutes = Math.floor(seconds/60);
+  const xpEarned = minutes * 2;
+  if (xpEarned>0) addXp(p, xpEarned);
+  return xpEarned;
 }

@@ -3,9 +3,9 @@ const TAP_COST = 10;
 let tapTimerHandle = null;
 
 function startTap(){
-  if (!spendForGame("tap", TAP_COST)) return;
+  spendForGame("tap");
   state.arcadeGame="tap";
-  state.tap = {score:0, combo:0, lives:3, over:false, dir:"Up", duration:2.2, timeLeft:2.2, feedback:"", coinsEarned:0};
+  state.tap = {score:0, combo:0, lives:3, over:false, dir:"Up", duration:2.2, timeLeft:2.2, feedback:"", xpEarned:0, startedAt:Date.now()};
   nextTapRound();
   render();
   startTapTimer();
@@ -47,10 +47,10 @@ function endTap(){
   t.over=true; stopTapTimer();
   t.feedback = `Spiel vorbei! Endpunktzahl: ${t.score}`;
   if (t.score>p.tapHigh) p.tapHigh=t.score;
-  t.coinsEarned = payoutForGame(t.score);
+  t.xpEarned = payoutForGame(t.score) + awardPlaytimeXp(t.startedAt);
 }
 function restartTap(){
-  state.tap = {score:0, combo:0, lives:3, over:false, dir:"Up", duration:2.2, timeLeft:2.2, feedback:"", coinsEarned:0};
+  state.tap = {score:0, combo:0, lives:3, over:false, dir:"Up", duration:2.2, timeLeft:2.2, feedback:"", xpEarned:0, startedAt:Date.now()};
   nextTapRound(); render(); startTapTimer();
 }
 
@@ -89,7 +89,7 @@ function renderTapGame(){
   } else {
     html += `<div class="title">🎉 Runde beendet!</div>
     <div class="body-text">Punktzahl: ${t.score}</div>
-    <div style="color:var(--coin); margin:6px 0 20px;">+${t.coinsEarned} Coins verdient</div>
+    <div style="color:var(--xp); margin:6px 0 20px;">+${t.xpEarned} XP verdient</div>
     <button class="btn btn-primary" onclick="restartTap()" style="margin-right:10px;">Nochmal spielen</button>
     <button class="btn btn-secondary" onclick="exitArcadeGame()">Zurück zur Arcade</button>`;
   }

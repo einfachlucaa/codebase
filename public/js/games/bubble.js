@@ -3,9 +3,9 @@ const BUBBLE_COLORS = ["#ff5c7a","#4cc9f0","#39d98a","#ffca3a","#7c5cff","#ff9f4
 const BUBBLE_COST = 20;
 
 function startBubble(){
-  if (!spendForGame("bubble", BUBBLE_COST)) return;
+  spendForGame("bubble");
   state.arcadeGame="bubble";
-  state.bubble = {rows:6, cols:8, cells:[], score:0, level:1, combo:0, over:false, msg:"Klicke auf eine Kugel, um verbundene Kugeln gleicher Farbe zu poppen!", coinsEarned:0};
+  state.bubble = {rows:6, cols:8, cells:[], score:0, level:1, combo:0, over:false, msg:"Klicke auf eine Kugel, um verbundene Kugeln gleicher Farbe zu poppen!", xpEarned:0, startedAt:Date.now()};
   buildBubbleBoard();
   render();
 }
@@ -69,10 +69,10 @@ function endBubble(){
   b.over = true;
   b.msg = `Spiel vorbei! Keine Züge mehr übrig. Endpunktzahl: ${b.score}`;
   if (b.score>p.bubbleHigh) p.bubbleHigh = b.score;
-  b.coinsEarned = payoutForGame(b.score);
+  b.xpEarned = payoutForGame(b.score) + awardPlaytimeXp(b.startedAt);
 }
 function restartBubble(){
-  state.bubble = {rows:6, cols:8, cells:[], score:0, level:1, combo:0, over:false, msg:"Klicke auf eine Kugel, um verbundene Kugeln gleicher Farbe zu poppen!", coinsEarned:0};
+  state.bubble = {rows:6, cols:8, cells:[], score:0, level:1, combo:0, over:false, msg:"Klicke auf eine Kugel, um verbundene Kugeln gleicher Farbe zu poppen!", xpEarned:0, startedAt:Date.now()};
   buildBubbleBoard(); render();
 }
 
@@ -99,7 +99,7 @@ function renderBubbleGame(){
     html += `<div style="width:420px; padding:20px;">
       <div class="title">🎉 Runde beendet!</div>
       <div class="body-text">Punktzahl: ${b.score}</div>
-      <div style="color:var(--coin); margin:6px 0 20px;">+${b.coinsEarned} Coins verdient</div>
+      <div style="color:var(--xp); margin:6px 0 20px;">+${b.xpEarned} XP verdient</div>
       <button class="btn btn-primary" onclick="restartBubble()" style="margin-right:10px;">Nochmal spielen</button>
       <button class="btn btn-secondary" onclick="exitArcadeGame()">Zurück zur Arcade</button>
     </div>`;

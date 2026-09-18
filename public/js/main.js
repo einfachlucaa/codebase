@@ -27,6 +27,7 @@ function exitArcadeTimers(){
   stopTapTimer();
   stopQuizRushTimer();
   stopPacmanTimer();
+  stopSnakeTimer();
 }
 function openLesson(id){
   state.lessonId = id;

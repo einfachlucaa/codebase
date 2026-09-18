@@ -6,7 +6,7 @@ const MEMORY_PAIR_COUNT = 8; // 8 Paare = 16 Karten (4x4 Raster)
 let memoryFlipTimeout = null;
 
 function startMemory(){
-  if (!spendForGame("memory", MEMORY_COST)) return;
+  if (!spendForGame("memory")) return;
   state.arcadeGame="memory";
   buildMemoryBoard();
   render();
@@ -22,7 +22,7 @@ function buildMemoryBoard(){
   state.memory = {
     cards, flipped:[], matches:0, totalPairs:chosen.length,
     mismatches:0, score:0, over:false, locked:false,
-    msg:"Finde jeweils Begriff und passende Erklärung.", coinsEarned:0,
+    msg:"Finde jeweils Begriff und passende Erklärung.", xpEarned:0, startedAt:Date.now(),
   };
 }
 function flipMemoryCard(idx){
@@ -65,7 +65,7 @@ function endMemory(){
   m.msg = `🎉 Alle Paare gefunden! ${m.mismatches} Fehlversuch(e).`;
   if (m.score>p.memoryHigh) p.memoryHigh = m.score;
   if (m.mismatches===0) p.memoryPerfect = (p.memoryPerfect||0)+1;
-  m.coinsEarned = payoutForGame(m.score);
+  m.xpEarned = payoutForGame(m.score) + awardPlaytimeXp(m.startedAt);
 }
 function restartMemory(){
   if (memoryFlipTimeout){ clearTimeout(memoryFlipTimeout); memoryFlipTimeout=null; }
@@ -97,7 +97,7 @@ function renderMemoryGame(){
     html += `<div style="width:420px; padding:20px;">
       <div class="title">🎉 Runde beendet!</div>
       <div class="body-text">Punktzahl: ${m.score} · Fehlversuche: ${m.mismatches}</div>
-      <div style="color:var(--coin); margin:6px 0 20px;">+${m.coinsEarned} Coins verdient</div>
+      <div style="color:var(--xp); margin:6px 0 20px;">+${m.xpEarned} XP verdient</div>
       <button class="btn btn-primary" onclick="restartMemory()" style="margin-right:10px;">Nochmal spielen</button>
       <button class="btn btn-secondary" onclick="exitArcadeGame()">Zurück zur Arcade</button>
     </div>`;

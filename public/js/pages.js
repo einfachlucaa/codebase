@@ -462,11 +462,18 @@ function renderAchievements(){
 
 /* ---------- RENDER: ARCADE ---------- */
 const ARCADE_GAMES = [
-  {key:"bubble", icon:"🫧", title:"Bubble Shooter", desc:"Poppe verbundene Kugeln gleicher Farbe und sammle Combo-Punkte.", cost:0, high:p=>p.bubbleHigh, start:"startBubble", unlockLevel:1},
-  {key:"tap", icon:"⚡", title:"TapTap Arrow", desc:"Reagiere blitzschnell auf die richtige Pfeilrichtung.", cost:15, high:p=>p.tapHigh, start:"startTap", unlockLevel:2},
-  {key:"memory", icon:"🧠", title:"Memory Match", desc:"Finde Paare aus C#-Begriff und passender Erklärung.", cost:20, high:p=>p.memoryHigh, start:"startMemory", unlockLevel:3},
-  {key:"quizrush", icon:"🚀", title:"Quiz Rush", desc:"Beantworte C#-Fragen im Rennen gegen die Uhr, 3 Leben.", cost:25, high:p=>p.quizRushHigh, start:"startQuizRush", unlockLevel:4},
-  {key:"pacman", icon:"👾", title:"Pac-Man", desc:"Sammle alle Punkte im Labyrinth, weiche den Geistern aus. Power-Pellets machen sie fressbar!", cost:20, high:p=>p.pacmanHigh, start:"startPacman", unlockLevel:1},
+  {key:"bubble", icon:"🫧", title:"Bubble Shooter", desc:"Poppe verbundene Kugeln gleicher Farbe und sammle Combo-Punkte.", high:p=>p.bubbleHigh, start:"startBubble", unlockLevel:1,
+    tips:["Klicke auf eine Kugel, um sie und alle direkt verbundenen gleichfarbigen Nachbarn zu poppen.","Mindestens 2 gleichfarbige Kugeln müssen zusammenhängen.","Größere Gruppen und Combos (mehrfach hintereinander poppen) bringen mehr Punkte.","Räumst du das ganze Feld leer, geht's im nächsten Level mit mehr Farben weiter."]},
+  {key:"tap", icon:"⚡", title:"TapTap Arrow", desc:"Reagiere blitzschnell auf die richtige Pfeilrichtung.", high:p=>p.tapHigh, start:"startTap", unlockLevel:2,
+    tips:["Drück die angezeigte Pfeilrichtung, bevor die Zeit abläuft — per Klick oder Tastatur-Pfeiltasten.","Jede richtige Antwort erhöht deine Combo und das Tempo.","3 Leben — bei falscher Richtung oder Zeitüberschreitung verlierst du eins."]},
+  {key:"memory", icon:"🧠", title:"Memory Match", desc:"Finde Paare aus C#-Begriff und passender Erklärung.", high:p=>p.memoryHigh, start:"startMemory", unlockLevel:3,
+    tips:["Decke zwei Karten auf — passen Begriff und Erklärung zusammen, bleiben sie offen.","Merk dir, was wo lag, um mit möglichst wenigen Versuchen fertig zu werden.","Schaffst du es fehlerfrei, gibt's einen extra Erfolg."]},
+  {key:"quizrush", icon:"🚀", title:"Quiz Rush", desc:"Beantworte C#-Fragen im Rennen gegen die Uhr, 3 Leben.", high:p=>p.quizRushHigh, start:"startQuizRush", unlockLevel:4,
+    tips:["Beantworte Multiple-Choice-Fragen, bevor die Zeit abläuft.","Je länger deine Serie, desto weniger Zeit bleibt — aber desto mehr Punkte pro Antwort.","3 Leben — bei falscher Antwort oder Zeitüberschreitung verlierst du eins."]},
+  {key:"pacman", icon:"👾", title:"Pac-Man", desc:"Sammle alle Punkte im Labyrinth, weiche den Geistern aus. Power-Pellets machen sie fressbar!", high:p=>p.pacmanHigh, start:"startPacman", unlockLevel:1,
+    tips:["Steuerung: Pfeiltasten, WASD oder die Buttons unterm Spielfeld.","Sammle alle kleinen Punkte, um das Level zu gewinnen.","Die großen, blinkenden Power-Pellets machen Geister für kurze Zeit fressbar — dann bringen sie Bonuspunkte statt ein Leben zu kosten.","3 Leben, an den Seitenrändern gibt's einen Tunnel-Durchgang."]},
+  {key:"snake", icon:"🟢", title:"Snake", desc:"Klassiker: Frisst du Punkte, wird die Schlange länger — beiß dir nicht selbst in den Schwanz!", high:p=>p.snakeHigh||0, start:"startSnake", unlockLevel:1,
+    tips:["Steuerung: Pfeiltasten oder WASD, die Schlange bewegt sich automatisch weiter.","Iss die roten Punkte, um zu wachsen und Punkte zu sammeln.","Berührst du dich selbst oder eine Wand, ist die Runde vorbei.","Wird mit steigender Länge schneller!"]},
 ];
 function renderArcade(){
   if (state.arcadeGame==="bubble") return renderBubbleGame();
@@ -474,24 +481,32 @@ function renderArcade(){
   if (state.arcadeGame==="memory") return renderMemoryGame();
   if (state.arcadeGame==="quizrush") return renderQuizRushGame();
   if (state.arcadeGame==="pacman") return renderPacmanGame();
+  if (state.arcadeGame==="snake") return renderSnakeGame();
   const p = progress();
   let html = `
   <div class="section-title">Arcade-Minispiele</div>
-  <div class="body-text">Gib deine gesammelten Coins für Minispiele aus! Weitere Spiele schalten sich mit steigendem Level frei.</div>
-  <div style="margin:6px 0 20px;">🪙 Dein Guthaben: <b style="color:var(--coin);">${p.coins}</b></div>
-  <div class="game-grid">`;
+  <div class="body-text">Alle Minispiele sind komplett kostenlos. Es gibt keine Coins — nur XP fürs Spielen und je nach Score. Weitere Spiele schalten sich mit steigendem Level frei.</div>
+  <div class="game-grid" style="margin-top:16px;">`;
   ARCADE_GAMES.forEach(g=>{
     const levelLocked = p.level < g.unlockLevel;
-    const disabled = levelLocked || p.coins<g.cost;
     html += `<div class="card game-card ${levelLocked?'game-card-locked':''}">
       <div class="gicon" style="${levelLocked?'opacity:.35; filter:grayscale(1);':''}">${levelLocked?icon("lock",34):g.icon}</div>
       <div class="section-title" style="margin:10px 0 4px;">${escapeHtml(g.title)}</div>
       <div class="body-text">${escapeHtml(g.desc)}</div>
       <div class="muted" style="margin:10px 0 14px;">${levelLocked?`${icon("lock",12)} Ab Level ${g.unlockLevel}`:`${icon("trophy",12)} Highscore: ${g.high(p)}`}</div>
-      <button class="btn btn-primary" ${disabled?"disabled":""} onclick="${g.start}()">${levelLocked?"Gesperrt":(g.cost===0?"Kostenlos spielen":`Spielen — ${g.cost} Coins`)}</button>
+      <button class="btn btn-primary" ${levelLocked?"disabled":""} onclick="${levelLocked?"":`showGameTips('${g.key}')`}">${levelLocked?"Gesperrt":"Spielen"}</button>
     </div>`;
   });
   return html+`</div>`;
+}
+async function showGameTips(gameKey){
+  const g = ARCADE_GAMES.find(x=>x.key===gameKey);
+  if (!g){ return; }
+  if (localStorage.getItem("cb_tips_seen_"+gameKey)){ window[g.start](); return; }
+  const msg = g.tips.map((t,i)=>`${i+1}. ${t}`).join("\n");
+  await customAlert(msg, `${g.icon} ${g.title} — so geht's`);
+  localStorage.setItem("cb_tips_seen_"+gameKey, "1");
+  window[g.start]();
 }
 
 /* ---------- RENDER: LEADERBOARD ---------- */
@@ -592,7 +607,7 @@ function casinoIcon(id, size){
 function renderPacmanGame(){
   const g = state.pacman;
   if (!g) return `<div class="body-text">Lade...</div>`;
-  const cellPx = 30;
+  const cellPx = 42;
   let cells = "";
   g.grid.forEach((row,y)=>{
     row.forEach((ch,x)=>{
@@ -633,7 +648,7 @@ function renderPacmanGame(){
   </div>
   ${g.over ? `<div class="card gradient-bg casino-result-pop" style="margin-top:16px; text-align:center;">
     <div style="color:white; font-weight:700; font-size:18px;">${g.won?"🎉 Labyrinth geschafft!":"💀 Game Over"}</div>
-    <div style="color:#ede9ff; margin:6px 0;">Score: ${g.score} · +${g.coinsEarned} Coins</div>
+    <div style="color:#ede9ff; margin:6px 0;">Score: ${g.score} · +${g.xpEarned} XP</div>
     <button class="btn" style="background:white; color:var(--accent); margin-top:8px;" onclick="exitPacman()">Zurück zur Übersicht</button>
   </div>` : ""}`;
 }
