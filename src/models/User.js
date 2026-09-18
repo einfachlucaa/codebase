@@ -25,6 +25,7 @@ const ProgressSchema = new mongoose.Schema(
     memoryHigh: { type: Number, default: 0 },
     quizRushHigh: { type: Number, default: 0 },
     pacmanHigh: { type: Number, default: 0 },
+    snakeHigh: { type: Number, default: 0 },
     memoryPerfect: { type: Number, default: 0 },
     quizRushBestStreak: { type: Number, default: 0 },
     arcadePlays: { type: Number, default: 0 },
