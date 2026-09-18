@@ -128,6 +128,24 @@ const muteUser = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
+// "Wird geprüft"-Status: solange ein Admin das Bearbeiten-Fenster eines
+// Nutzers offen hat, sieht dieser Nutzer selbst einen Hinweis-Banner.
+// Läuft nach 15 Minuten automatisch ab, falls das Fenster vergessen offen bleibt.
+const startReview = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(
+    req.params.id,
+    { underReviewBy: req.user.username, underReviewAt: new Date() },
+    { new: true }
+  );
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  res.json({ ok: true });
+});
+const endReview = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(req.params.id, { underReviewBy: null, underReviewAt: null }, { new: true });
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  res.json({ ok: true });
+});
+
 const resetPicture = asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(req.params.id, { profilePicture: null }, { new: true });
   if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
@@ -251,5 +269,5 @@ const stats = asyncHandler(async (req, res) => {
 module.exports = {
   listUsers, getUser, editStats, setRole, setBanned, deleteUser, stats,
   warnUser, clearWarnings, clearFlag, listActivity, listUserMessages, resetPicture,
-  fullUpdate, listUnbanRequests, reviewUnbanRequest, kickUser, muteUser,
+  fullUpdate, listUnbanRequests, reviewUnbanRequest, kickUser, muteUser, startReview, endReview,
 };

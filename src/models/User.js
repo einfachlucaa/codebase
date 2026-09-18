@@ -88,6 +88,8 @@ const UserSchema = new mongoose.Schema(
     bannedUntil: { type: Date, default: null }, // null = dauerhaft gesperrt (falls banned=true)
     isMuted: { type: Boolean, default: false }, // darf sich einloggen, aber keine Chat-Nachrichten senden
     tokenVersion: { type: Number, default: 0 }, // hochzählen = alle bestehenden Logins dieses Nutzers sofort ungültig ("Kick")
+    underReviewBy: { type: String, default: null }, // Username des Admins, der diesen Account gerade im Admin-Panel bearbeitet
+    underReviewAt: { type: Date, default: null },   // damit ein vergessen offen gelassenes Bearbeiten-Fenster automatisch abläuft
     warnings: { type: [WarningSchema], default: [] },
     avatar: { type: String, default: "🧑‍💻" },
     profilePicture: { type: String, default: null }, // Base64-Data-URI, serverseitig geprüft (Größe/Format)

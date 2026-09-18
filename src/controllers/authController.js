@@ -102,6 +102,13 @@ const logout = asyncHandler(async (req, res) => {
 });
 
 const me = asyncHandler(async (req, res) => {
+  // "Wird geprüft"-Status läuft nach 15 Minuten automatisch ab (falls ein
+  // Admin das Bearbeiten-Fenster vergessen hat zu schließen).
+  if (req.user.underReviewAt && Date.now() - req.user.underReviewAt.getTime() > 15 * 60 * 1000) {
+    req.user.underReviewBy = null;
+    req.user.underReviewAt = null;
+    await req.user.save();
+  }
   res.json({ user: req.user });
 });
 
@@ -123,4 +130,24 @@ const requestUnban = asyncHandler(async (req, res) => {
   res.status(201).json({ ok: true });
 });
 
-module.exports = { register, login, logout, me, requestUnban };
+// Eigenen Nutzernamen ändern. Da der JWT nur die User-ID (nicht den Namen)
+// enthält, bleibt die bestehende Login-Sitzung dabei gültig — kein Re-Login nötig.
+const changeUsername = asyncHandler(async (req, res) => {
+  const { newUsername } = req.body;
+  if (!newUsername || typeof newUsername !== "string") throw new ApiError(400, "Neuer Nutzername fehlt.");
+  const trimmed = newUsername.trim();
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(trimmed)) {
+    throw new ApiError(400, "Nutzername darf nur Buchstaben, Zahlen und _ enthalten (3-20 Zeichen).");
+  }
+  if (trimmed === req.user.username) throw new ApiError(400, "Das ist bereits dein aktueller Nutzername.");
+  const existing = await User.findOne({ username: trimmed });
+  if (existing) throw new ApiError(409, "Dieser Nutzername ist bereits vergeben.");
+
+  const oldName = req.user.username;
+  req.user.username = trimmed;
+  await req.user.save();
+  logActivity(req.user, "role_change", { action: "username_change", from: oldName, to: trimmed });
+  res.json({ user: req.user });
+});
+
+module.exports = { register, login, logout, me, requestUnban, changeUsername };
