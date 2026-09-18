@@ -9,9 +9,9 @@ const ProgressSchema = new mongoose.Schema(
   {
     level: { type: Number, default: 1 },
     xp: { type: Number, default: 0 },
-    coins: { type: Number, default: 50 },
+    coins: { type: Number, default: 5 },
     gems: { type: Number, default: 0 }, // seltene Zweitwährung, nicht im Casino einsetzbar
-    totalCoinsEarned: { type: Number, default: 50 },
+    totalCoinsEarned: { type: Number, default: 5 },
     streak: { type: Number, default: 0 },
     lastLearnDate: { type: String, default: null },
     completedLessons: { type: [String], default: [] },
@@ -30,6 +30,11 @@ const ProgressSchema = new mongoose.Schema(
     arcadePlays: { type: Number, default: 0 },
     // Freiform-Zähler pro Spiel ("bubble" -> 3, "tap" -> 1, ...)
     gamesPlayed: { type: mongoose.Schema.Types.Mixed, default: {} },
+    exerciseCooldowns: { type: mongoose.Schema.Types.Mixed, default: {} }, // exId -> Zeitpunkt letzter Belohnung
+    lessonCooldowns: { type: mongoose.Schema.Types.Mixed, default: {} },
+    examCooldowns: { type: mongoose.Schema.Types.Mixed, default: {} }, // courseId -> Zeitpunkt letzter Klausur
+    examsPassed: { type: Number, default: 0 },
+    examsPerfect: { type: Number, default: 0 },
     daily: {
       date: { type: String, default: null },
       exToday: { type: Number, default: 0 },

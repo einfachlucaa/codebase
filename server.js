@@ -29,9 +29,20 @@ async function main() {
   app.use("/api", apiRouter);
 
   // Frontend (statisch) ausliefern
-  app.use(express.static(path.join(__dirname, "public")));
+  // Cache-Control so gesetzt, dass Nutzer nach einem Deploy NIE manuell den
+  // Cache leeren oder neu starten müssen: der Browser darf Dateien cachen,
+  // muss sie aber bei jeder Anfrage per ETag beim Server validieren lassen
+  // ("no-cache" heißt "immer nachfragen", nicht "nie speichern"). Ist die
+  // Datei unverändert, kommt ein schnelles 304 zurück; hat sich was geändert,
+  // gibt's sofort die neue Version — ganz ohne Hard-Refresh.
+  app.use(express.static(path.join(__dirname, "public"), {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res) => res.setHeader("Cache-Control", "no-cache"),
+  }));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) return next();
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(__dirname, "public", "index.html"));
   });
 

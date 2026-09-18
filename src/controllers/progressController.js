@@ -9,7 +9,7 @@ const ALLOWED_FIELDS = [
   "completedLessons", "completedExercises", "unlocked", "totalSolved",
   "currentStreak", "bestStreak", "bubbleHigh", "tapHigh", "memoryHigh",
   "quizRushHigh", "memoryPerfect", "quizRushBestStreak", "arcadePlays", "pacmanHigh",
-  "gamesPlayed", "daily",
+  "gamesPlayed", "daily", "exerciseCooldowns", "lessonCooldowns", "examCooldowns", "examsPassed", "examsPerfect",
 ];
 
 // HINWEIS (Sicherheit): Die eigentliche Spiellogik (XP/Coins-Berechnung) läuft
@@ -20,8 +20,8 @@ const ALLOWED_FIELDS = [
 //     vom Client übernommen) -> verhindert Farmen durch Modul-Wechsel/Reload-Loops.
 //  3) Auffällige Accounts werden automatisch geflaggt und erscheinen im Admin-Panel.
 const MIN_SYNC_INTERVAL_MS = 1500;
-const MAX_XP_PER_DAY = 3000;
-const MAX_COINS_PER_DAY = 1500;
+const MAX_XP_PER_DAY = 400;   // an die deutlich abgeschwächte Wirtschaft angepasst (vorher 3000)
+const MAX_COINS_PER_DAY = 200; // vorher 1500
 const MAX_GEMS_PER_DAY = 20; // Gems sind bewusst selten, deshalb ein enges Tageslimit
 
 function todayStr() {
