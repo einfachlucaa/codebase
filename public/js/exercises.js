@@ -1,4 +1,9 @@
 /* ---------- EXERCISE HANDLING ---------- */
+function instArr(container){
+  if (container==="lesson") return state.lessonInstances;
+  if (container==="exam") return state.examSession ? state.examSession.instances : [];
+  return state.practiceInstances;
+}
 function makeInstance(exId){
   const def = EXERCISES[exId];
   const inst = {exId, answered:false, correct:false, feedback:"", selected:-1, text:"", showHint:false};
@@ -33,12 +38,19 @@ function gradeInstance(inst){
 }
 
 function checkExercise(container, idx){
-  const arr = container==="lesson" ? state.lessonInstances : state.practiceInstances;
+  const arr = instArr(container);
   const inst = arr[idx];
   const def = EXERCISES[inst.exId];
   const result = gradeInstance(inst);
   const wasAlreadyCorrect = inst.correct;
   inst.answered = true; inst.correct = result.ok; inst.feedback = result.msg;
+
+  if (container==="exam"){
+    // Im Klausur-Modus gibt's keine Einzel-Belohnung pro Frage — nur am Ende.
+    if (result.ok && !wasAlreadyCorrect) playSound("correct"); else if (!result.ok) playSound("wrong");
+    render();
+    return;
+  }
 
   if (result.ok && !wasAlreadyCorrect){
     const p = progress();
@@ -56,15 +68,16 @@ function checkExercise(container, idx){
   render();
 }
 function selectOption(container, idx, opt){
-  const arr = container==="lesson" ? state.lessonInstances : state.practiceInstances;
+  const arr = instArr(container);
   arr[idx].selected = opt; render();
 }
-function setText(container, idx, val){
-  const arr = container==="lesson" ? state.lessonInstances : state.practiceInstances;
+function setText(container, idx, val, ev){
+  const arr = instArr(container);
   arr[idx].text = val;
+  if (ev && ev.target) updateCodeSuggestions(container, idx, ev.target);
 }
 function moveLine(container, idx, lineIdx, dir){
-  const arr = container==="lesson" ? state.lessonInstances : state.practiceInstances;
+  const arr = instArr(container);
   const order = arr[idx].order;
   const j = lineIdx+dir;
   if (j<0||j>=order.length) return;
@@ -72,8 +85,52 @@ function moveLine(container, idx, lineIdx, dir){
   render();
 }
 function toggleHint(container, idx){
-  const arr = container==="lesson" ? state.lessonInstances : state.practiceInstances;
+  const arr = instArr(container);
   arr[idx].showHint = !arr[idx].showHint; render();
+}
+
+/* ---------- TAB-VERVOLLSTÄNDIGUNG (nur bei Code-Aufgaben) ---------- */
+function currentWordAtEnd(text){
+  const m = /[A-Za-z_][A-Za-z0-9_.]*$/.exec(text||"");
+  return m ? m[0] : "";
+}
+function updateCodeSuggestions(container, idx, textareaEl){
+  const arr = instArr(container);
+  const inst = arr[idx];
+  const def = EXERCISES[inst.exId];
+  if (!def || def.type!=="code") return;
+  const course = exerciseCourse(inst.exId);
+  const word = currentWordAtEnd(textareaEl.value);
+  const list = KEYWORDS_BY_COURSE[course] || [];
+  const suggestions = word.length>=2
+    ? list.filter(k=>k.toLowerCase().startsWith(word.toLowerCase()) && k.toLowerCase()!==word.toLowerCase()).slice(0,5)
+    : [];
+  textareaEl.dataset.topSuggestion = suggestions[0] || "";
+  textareaEl.dataset.topWord = word;
+  const box = document.getElementById(textareaEl.id + "_suggest");
+  if (!box) return;
+  box.innerHTML = suggestions.map(s=>
+    `<button type="button" class="suggest-chip" onmousedown="event.preventDefault();" onclick="applySuggestion(document.getElementById('${textareaEl.id}'), '${container}', ${idx}, '${s.replace(/'/g,"\\'")}')">${escapeHtml(s)}</button>`
+  ).join("");
+}
+function applySuggestion(textareaEl, container, idx, chosen){
+  const word = textareaEl.dataset.topWord || "";
+  const val = textareaEl.value;
+  const newVal = val.slice(0, val.length-word.length) + chosen;
+  textareaEl.value = newVal;
+  textareaEl.focus();
+  textareaEl.selectionStart = textareaEl.selectionEnd = newVal.length;
+  setText(container, idx, newVal, {target:textareaEl});
+  const box = document.getElementById(textareaEl.id + "_suggest");
+  if (box) box.innerHTML = "";
+}
+function exerciseTabComplete(ev, container, idx){
+  if (ev.key !== "Tab") return;
+  const ta = ev.target;
+  const top = ta.dataset.topSuggestion;
+  if (!top) return; // kein Vorschlag da -> normales Tab-Verhalten (Fokus wechselt)
+  ev.preventDefault();
+  applySuggestion(ta, container, idx, top);
 }
 
 function renderExerciseWidget(inst, idx, container){
@@ -81,8 +138,11 @@ function renderExerciseWidget(inst, idx, container){
   let body = "";
   if (def.code) body += `<div class="code-block">${escapeHtml(def.code)}</div>`;
 
+  const taId = `taex_${container}_${idx}`;
   if (def.type==="code"){
-    body += `<textarea class="ex-input" rows="3" oninput="setText('${container}',${idx},this.value)" ${inst.correct?"disabled":""}>${escapeHtml(inst.text)}</textarea>`;
+    body += `<textarea id="${taId}" class="ex-input" rows="3" oninput="setText('${container}',${idx},this.value,event)" onkeydown="exerciseTabComplete(event,'${container}',${idx})" ${inst.correct?"disabled":""}>${escapeHtml(inst.text)}</textarea>
+    <div id="${taId}_suggest" class="suggest-row"></div>
+    <div class="muted" style="margin-top:2px;">${icon("terminal",11)} Tipp: Tab vervollständigt Vorschläge automatisch.</div>`;
   } else if (def.type==="guess"){
     body += `<input class="ex-input" type="text" value="${escapeHtml(inst.text)}" oninput="setText('${container}',${idx},this.value)" ${inst.correct?"disabled":""}/>`;
   } else if (def.type==="mc"){

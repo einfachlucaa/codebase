@@ -23,6 +23,10 @@ let state = {
   showTutorial: false,
   leaderboardRows: null,
   leaderboardSort: "xp",
+  dashboardTop3: null,
+  handbuchTab: "intro",
+  settingsLegal: null,
+  examSession: null,
   shop: null,          // {items, owned, coins}
   adminUsers: null,
   adminQuery: "",
@@ -36,6 +40,7 @@ let state = {
   adminEditingUser: null, // aktuell im Vollbild-Editor geöffneter Nutzer
   adminUnbanRequests: null,
   soundOn: true,
+  userMenuOpen: false,
   casinoBusy: false,
   casinoResult: null,  // letztes Casino-Ergebnis (für Animation/Anzeige)
   casinoSpinFrame: null, // aktuell angezeigte Zufallssymbole während des Slot-Spins
@@ -43,6 +48,7 @@ let state = {
   friendSearchResults: [],
   cookieState: null,
   cookieClicks: 0,       // seit letztem Server-Sync gesammelte Klicks (lokal, wird periodisch synced)
+  cookieBounce: 0,       // wechselt bei jedem Klick, triggert die Cookie-Animation neu
   factoryState: null,
   subscriptionState: null,
   activeChatWith: null,  // {id, username, avatar}
@@ -53,16 +59,24 @@ let state = {
 
 function newProgress(){
   return {
-    level:1, xp:0, coins:50, gems:0, totalCoinsEarned:50,
+    level:1, xp:0, coins:5, gems:0, totalCoinsEarned:5,
     streak:0, lastLearnDate:null,
     completedLessons:[], completedExercises:[], unlocked:[],
     totalSolved:0, currentStreak:0, bestStreak:0,
     bubbleHigh:0, tapHigh:0, memoryHigh:0, quizRushHigh:0, pacmanHigh:0,
     memoryPerfect:0, quizRushBestStreak:0,
     arcadePlays:0, gamesPlayed:{},
+    exerciseCooldowns:{}, lessonCooldowns:{}, // exId/lessonId -> Zeitpunkt letzter Belohnung (24h-Sperre für Wiederholungen)
+    examCooldowns:{}, examsPassed:0, examsPerfect:0,
     daily:{date:todayStr(), exToday:0, lessonsToday:0, xpToday:0, claimed:false},
   };
 }
+// Wirtschaft deutlich abgeschwächt: statt der in den Lektionen/Aufgaben
+// hinterlegten "großen" XP/Coin-Werte direkt zu vergeben, werden sie durch 10
+// geteilt (mindestens 1). So bleiben alle Zahlen in den Daten unverändert
+// lesbar, die tatsächliche Auszahlung ist aber ca. 1 Coin pro Aufgabe.
+function dampen(v){ return Math.max(1, Math.round(v/10)); }
+const REWARD_COOLDOWN_MS = 24*60*60*1000;
 function todayStr(){ return new Date().toDateString(); }
 function xpForLevel(level){ return 500 + (level-1)*250; }
 function progress(){ return state.users[state.currentUser].progress; }
@@ -106,17 +120,22 @@ function checkAchievements(p){
 function recordExercise(p, exDef, exId, correct){
   registerLearningDay(p);
   if (correct){
-    // Sicherheit: Belohnung gibt es WIRKLICH nur beim allerersten Lösen einer
-    // Aufgabe — jedes weitere Mal (z.B. durch "Neue Aufgaben mischen") zählt
-    // zwar für den aktuellen Streak, bringt aber 0 XP/Coins. Kein Farmen mehr möglich.
-    const firstTime = !p.completedExercises.includes(exId);
     p.currentStreak++; p.bestStreak = Math.max(p.bestStreak, p.currentStreak);
-    if (firstTime){
-      p.completedExercises.push(exId);
-      p.totalSolved++;
-      p.daily.exToday++;
-      p.daily.xpToday += exDef.xp;
-      addXp(p, exDef.xp); addCoins(p, exDef.coins);
+    const firstTime = !p.completedExercises.includes(exId);
+    if (firstTime){ p.completedExercises.push(exId); p.totalSolved++; }
+
+    // Belohnung gibt's beim ersten Lösen — danach erst wieder, wenn seit der
+    // letzten Belohnung für GENAU DIESE Aufgabe 24 Stunden vergangen sind.
+    // So kann man Lektionen beliebig oft zum Üben wiederholen, aber nicht
+    // durch schnelles Wiederholen XP/Coins farmen.
+    const now = Date.now();
+    const last = p.exerciseCooldowns[exId];
+    const cooldownOver = !last || (now-last) >= REWARD_COOLDOWN_MS;
+    if (firstTime || cooldownOver){
+      p.exerciseCooldowns[exId] = now;
+      const xpGain = dampen(exDef.xp), coinGain = dampen(exDef.coins);
+      p.daily.exToday++; p.daily.xpToday += xpGain;
+      addXp(p, xpGain); addCoins(p, coinGain);
     }
   } else {
     p.currentStreak = 0;
@@ -125,10 +144,17 @@ function recordExercise(p, exDef, exId, correct){
 }
 function completeLesson(p, lesson){
   registerLearningDay(p);
-  if (!p.completedLessons.includes(lesson.id)){
-    p.completedLessons.push(lesson.id);
-    p.daily.lessonsToday++; p.daily.xpToday += lesson.xp;
-    addXp(p, lesson.xp);
+  const firstTime = !p.completedLessons.includes(lesson.id);
+  if (firstTime) p.completedLessons.push(lesson.id);
+
+  const now = Date.now();
+  const last = p.lessonCooldowns[lesson.id];
+  const cooldownOver = !last || (now-last) >= REWARD_COOLDOWN_MS;
+  if (firstTime || cooldownOver){
+    p.lessonCooldowns[lesson.id] = now;
+    const xpGain = dampen(lesson.xp);
+    p.daily.lessonsToday++; p.daily.xpToday += xpGain;
+    addXp(p, xpGain);
   }
   checkAchievements(p);
 }

@@ -14,6 +14,7 @@ function goto(page){
   if (page==="subscription") loadSubscription();
   if (page==="projects") loadProjects();
   if (page==="admin") { loadAdminUsers(); startAdminLivePoll(); }
+  if (page==="dashboard") loadDashboardExtras();
 }
 function switchGamesTab(tab){
   state.gamesTab = tab; state.page="games"; state.arcadeGame=null; exitArcadeTimers();
@@ -308,6 +309,7 @@ async function loadCookieState(){
 }
 function clickCookie(){
   state.cookieClicks++;
+  state.cookieBounce = (state.cookieBounce||0) + 1; // wechselt jedes Mal -> CSS-Animation startet neu
   playSound("click");
   scheduleCookieSync();
   render(); // schnelles visuelles Feedback, Server-Sync passiert gebündelt (siehe unten)
@@ -576,22 +578,41 @@ function closeProject(){ state.activeProject = null; state.codeOutput = null; re
 let _projectSaveTimer = null;
 function editProjectCode(code){
   state.activeProject.code = code;
+  state.activeProject.dirty = true;
   clearTimeout(_projectSaveTimer);
   _projectSaveTimer = setTimeout(saveActiveProject, 900);
 }
+function ideHandleTab(ev){
+  if (ev.key !== "Tab") return;
+  ev.preventDefault();
+  const ta = ev.target;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + "  " + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + 2;
+  editProjectCode(ta.value);
+}
 async function saveActiveProject(){
   if (!state.activeProject) return;
-  try{ await apiPatch(`/projects/${state.activeProject._id}`, { code: state.activeProject.code }); }
-  catch(err){ /* still egal, nächster Save-Versuch holt es nach */ }
+  try{
+    await apiPatch(`/projects/${state.activeProject._id}`, { code: state.activeProject.code });
+    state.activeProject.dirty = false;
+  } catch(err){ /* still egal, nächster Save-Versuch holt es nach */ }
 }
 async function runActiveProject(){
   if (!state.activeProject || state.codeRunning) return;
   await saveActiveProject();
+  const lang = state.activeProject.language;
+  if (lang!=="javascript" && lang!=="python"){
+    state.codeOutput = { stderr:
+      "Diese Sprache kann gerade nicht ausgeführt werden: Der bisherige kostenlose Ausführungs-Dienst (Piston) ist seit Februar 2026 nicht mehr frei zugänglich. " +
+      "JavaScript und Python laufen direkt in deinem Browser und funktionieren weiterhin uneingeschränkt." };
+    render(); return;
+  }
   state.codeRunning = true; state.codeOutput = null; render();
   try{
-    const result = await apiPost("/code/run", { language: state.activeProject.language, code: state.activeProject.code });
+    const result = lang==="javascript" ? await runJsSandboxed(state.activeProject.code) : await runPython(state.activeProject.code);
     state.codeOutput = result;
-    playSound(result.stderr || result.compileStderr ? "wrong" : "correct");
+    playSound(result.stderr ? "wrong" : "correct");
   } catch(err){ state.codeOutput = { stderr: err.message }; }
   finally{ state.codeRunning = false; render(); }
 }
@@ -604,6 +625,56 @@ async function deleteActiveProject(){
     await loadProjects();
   } catch(err){ await customAlert(err.message); }
 }
+
+/* ---------- KLAUSUR (Test-Modus: 10 Fragen aus dem aktuellen Kurs) ---------- */
+const EXAM_COOLDOWN_MS = 24*60*60*1000;
+function examEligible(){
+  const p = progress();
+  const last = p.examCooldowns[state.course];
+  return !last || (Date.now()-last) >= EXAM_COOLDOWN_MS;
+}
+async function startExam(){
+  if (!examEligible()){
+    const last = progress().examCooldowns[state.course];
+    const hoursLeft = Math.ceil((EXAM_COOLDOWN_MS - (Date.now()-last)) / (60*60*1000));
+    await customAlert(`Du hast diese Klausur schon geschrieben. Neuer Versuch in ca. ${hoursLeft}h möglich.`, "Noch gesperrt");
+    return;
+  }
+  const ids = Object.keys(EXERCISES).filter(id=>exerciseCourse(id)===state.course);
+  if (ids.length<5){ await customAlert("Für diesen Kurs gibt es noch zu wenige Aufgaben für eine Klausur."); return; }
+  shuffle(ids);
+  const selected = ids.slice(0, Math.min(10, ids.length));
+  state.examSession = { course: state.course, instances: selected.map(makeInstance), index:0, finished:false, result:null };
+  render();
+}
+function examNext(){
+  const ex = state.examSession;
+  if (!ex) return;
+  if (ex.index < ex.instances.length-1){ ex.index++; render(); }
+  else finishExam();
+}
+function finishExam(){
+  const ex = state.examSession;
+  const p = progress();
+  const correctCount = ex.instances.filter(i=>i.correct).length;
+  const total = ex.instances.length;
+  const pct = Math.round(100*correctCount/total);
+  const grade = pct>=95?1 : pct>=80?2 : pct>=65?3 : pct>=50?4 : pct>=30?5 : 6;
+  const passed = pct>=50;
+
+  p.examCooldowns[state.course] = Date.now();
+  const coinsEarned = correctCount; // bewusst niedrig, passend zur restlichen Wirtschaft
+  addCoins(p, coinsEarned);
+  if (passed) p.examsPassed = (p.examsPassed||0)+1;
+  if (correctCount===total) p.examsPerfect = (p.examsPerfect||0)+1;
+  const unlocked = checkAchievements(p);
+
+  ex.finished = true;
+  ex.result = { correctCount, total, pct, grade, passed, coinsEarned, unlocked };
+  playSound(passed ? "win" : "lose");
+  render();
+}
+function exitExam(){ state.examSession = null; render(); }
 
 /* ---------- ADMIN-PANEL ---------- */
 async function loadAdminUsers(){
@@ -734,5 +805,15 @@ function exportProgress(){
   URL.revokeObjectURL(url);
 }
 
+async function loadDashboardExtras(){
+  try{ const { rows } = await apiGet("/leaderboard?sortBy=xp&limit=3"); state.dashboardTop3 = rows; } catch{ state.dashboardTop3 = []; }
+  try{ const data = await apiGet("/friends"); state.friendsData = data; } catch{}
+  render();
+}
+
 /* ---------- BOOTSTRAP ---------- */
+document.addEventListener("click", (ev)=>{
+  if (!state.userMenuOpen) return;
+  if (!ev.target.closest(".sidebar-bottom")) { state.userMenuOpen = false; render(); }
+});
 bootstrap();

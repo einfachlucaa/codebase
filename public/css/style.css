@@ -151,10 +151,12 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
 .shell { display: flex; height: 100vh; overflow: hidden; }
 .sidebar {
   width: 240px; background: rgba(30,30,34,0.78); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; padding: 20px 0; flex-shrink: 0;
+  display: flex; flex-direction: column; padding: 20px 0 0; flex-shrink: 0;
   backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
-  height: 100vh; overflow-y: auto; position: relative;
+  height: 100vh; overflow: hidden; position: relative;
 }
+.sidebar-nav { flex: 1; overflow-y: auto; padding-bottom: 10px; }
+.sidebar-bottom { flex-shrink: 0; padding: 10px; border-top: 1px solid var(--border); position: relative; }
 .sidebar::after {
   /* dezenter, vertikaler Orange-Linien-Akzent am Rand der Sidebar */
   content: ""; position: absolute; top: 0; right: 0; width: 1px; height: 100%;
@@ -177,10 +179,27 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
   box-shadow: 0 4px 14px rgba(255,122,26,0.35);
 }
 .user-chip {
-  margin: 6px 16px 14px; padding: 12px; border-radius: var(--radius-md);
+  margin: 0; padding: 10px; border-radius: var(--radius-md);
   background: rgba(120,120,128,0.14); border: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 10px; width: 100%; cursor: pointer;
+  transition: background 0.15s ease;
 }
+.user-chip:hover { background: rgba(120,120,128,0.24); }
+.user-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 10px; right: 10px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); z-index: 50;
+  animation: modalPop 0.18s cubic-bezier(.34,1.56,.64,1);
+}
+.user-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: transparent; border: none; color: var(--text-secondary);
+  padding: 9px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500; cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.user-menu-item:hover { background: rgba(120,120,128,0.18); color: var(--text-primary); }
+.user-menu-item.user-menu-danger:hover { background: rgba(255,69,58,0.14); color: var(--danger); }
+.user-menu-sep { height: 1px; background: var(--border); margin: 5px 4px; }
 .user-chip .av { font-size: 24px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
 .content { flex: 1; height: 100vh; padding: 30px 40px 60px; overflow-y: auto; max-width: 1200px; }
 
@@ -566,3 +585,40 @@ body::before {
 }
 .pm-ghost.pm-frightened { background: #2c2ce6; animation: pmScared 0.4s linear infinite; }
 @keyframes pmScared { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* ---------- HINTERGRUND-AKZENTE (Striche/Kreise) ---------- */
+.bg-deco {
+  position: fixed; inset: 0; left: 240px; z-index: 0; pointer-events: none; overflow: hidden;
+}
+.bg-deco svg { width: 100%; height: 100%; opacity: 0.5; }
+.content > *:not(.bg-deco) { position: relative; z-index: 1; }
+
+/* ---------- COOKIE CLICKER: ANIMATION ---------- */
+.cookie-stage { position: relative; display: inline-block; }
+.cookie-btn {
+  border: none; background: none; cursor: pointer; font-size: 120px; line-height: 1;
+  animation: cookieBounce 0.25s cubic-bezier(.34,1.56,.64,1);
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.4));
+}
+.cookie-btn:active { transform: scale(0.9); }
+@keyframes cookieBounce { 0% { transform: scale(0.82) rotate(-6deg); } 60% { transform: scale(1.08) rotate(3deg); } 100% { transform: scale(1) rotate(0); } }
+.cookie-float {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  font-weight: 800; font-size: 22px; color: var(--coin); pointer-events: none;
+  animation: cookieFloat 0.7s ease-out forwards;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+@keyframes cookieFloat { 0% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -55px) scale(1.3); } }
+
+/* ---------- AUTH-FOOTER (Impressum/Datenschutz) ---------- */
+.auth-footer { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-muted); }
+.auth-footer .btn-ghost { font-size: 12px; padding: 0 2px; }
+
+/* ---------- TAB-VERVOLLSTÄNDIGUNG ---------- */
+.suggest-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; min-height: 0; }
+.suggest-chip {
+  background: rgba(255,122,26,0.15); border: 1px solid rgba(255,122,26,0.35); color: var(--accent);
+  border-radius: 8px; padding: 4px 9px; font-size: 12px; font-family: "Cascadia Code", ui-monospace, monospace;
+  cursor: pointer; transition: background 0.15s ease;
+}
+.suggest-chip:hover { background: rgba(255,122,26,0.28); }

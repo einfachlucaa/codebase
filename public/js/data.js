@@ -501,6 +501,80 @@ const LUA_EXERCISES = {
 };
 LESSONS.push(...LUA_LESSONS);
 
+/* ---------- HANDBUCH: Grundlagen-Einführung + Sprach-Spickzettel ---------- */
+const HANDBUCH_INTRO = [
+  { h:"Was ist Code überhaupt?", body:"Code ist eine Liste von Anweisungen für den Computer, geschrieben in einer Sprache, die er versteht. Genau wie ein Kochrezept Schritt für Schritt sagt, was zu tun ist, sagt Code dem Computer Schritt für Schritt, was er tun soll." },
+  { h:"Wie läuft ein Programm ab?", body:"Ein Programm wird von oben nach unten durchgelaufen, Zeile für Zeile — außer, eine Bedingung (if) oder Schleife (for/while) ändert den Ablauf. Der Computer macht dabei nur genau das, was da steht, nicht mehr und nicht weniger." },
+  { h:"Was ist eine Variable?", body:"Eine Variable ist wie eine beschriftete Kiste, in der ein Wert gespeichert wird — eine Zahl, ein Text, etc. Man kann den Inhalt der Kiste später wieder auslesen oder austauschen." },
+  { h:"Was ist eine Funktion?", body:"Eine Funktion ist ein wiederverwendbarer Codeblock mit einem Namen. Statt denselben Code mehrfach zu schreiben, schreibt man ihn einmal in eine Funktion und ruft sie überall dort auf, wo man ihn braucht." },
+  { h:"Was ist eine Schleife?", body:"Eine Schleife wiederholt einen Codeblock mehrfach, statt ihn x-mal von Hand zu kopieren — z.B. um jedes Element einer Liste zu bearbeiten oder etwas 10-mal auszugeben." },
+  { h:"Was ist eine Bedingung (if)?", body:"Eine Bedingung lässt den Computer entscheiden: 'Wenn X zutrifft, mach A — sonst mach B.' Damit reagiert ein Programm unterschiedlich auf unterschiedliche Situationen." },
+  { h:"Warum gibt es so viele Sprachen?", body:"Jede Programmiersprache hat Stärken für bestimmte Aufgaben (Python: Datenanalyse/KI, C#: Windows/Spiele, Java: große Firmenanwendungen, C++: sehr performance-kritische Software, Lua: kleine Skripte in Spielen). Die Grundkonzepte (Variablen, Schleifen, Funktionen) sind aber in fast jeder Sprache gleich — wer eine kann, lernt die nächste viel schneller." },
+];
+// Gleiche Kategorien über alle Sprachen hinweg, damit man 1:1 vergleichen kann.
+const REFERENCE = {
+  csharp: [
+    {topic:"Ausgabe", syntax:'Console.WriteLine("Text");', note:"Gibt Text mit Zeilenumbruch aus."},
+    {topic:"Kommentar", syntax:'// Das ist ein Kommentar', note:"Wird vom Computer ignoriert."},
+    {topic:"Variable", syntax:'int zahl = 5;\nstring text = "Hi";', note:"Typ ist Pflicht (int, string, bool, double)."},
+    {topic:"Textverkettung", syntax:'"Hallo " + name', note:"+ verbindet Texte."},
+    {topic:"Vergleich", syntax:'a == b, a != b, a > b', note:"== vergleicht Werte."},
+    {topic:"Bedingung", syntax:'if (x > 5) { ... }\nelse { ... }', note:"Block in geschweiften Klammern."},
+    {topic:"for-Schleife", syntax:'for (int i=0; i<5; i++) { ... }', note:"Kopf: Start; Bedingung; Schritt."},
+    {topic:"while-Schleife", syntax:'while (x < 5) { ... }', note:"Läuft solange Bedingung wahr ist."},
+    {topic:"Funktion", syntax:'int Addiere(int a, int b) {\n  return a+b;\n}', note:"Rückgabetyp vor dem Namen."},
+    {topic:"Liste", syntax:'List<int> l = new List<int>();\nl.Add(5);', note:"Dynamische Größe."},
+  ],
+  python: [
+    {topic:"Ausgabe", syntax:'print("Text")', note:"Gibt Text mit Zeilenumbruch aus."},
+    {topic:"Kommentar", syntax:'# Das ist ein Kommentar', note:"Wird vom Computer ignoriert."},
+    {topic:"Variable", syntax:'zahl = 5\ntext = "Hi"', note:"Kein Typ nötig, wird automatisch erkannt."},
+    {topic:"Textverkettung", syntax:'"Hallo " + name', note:"+ verbindet Texte (oder f-Strings)."},
+    {topic:"Vergleich", syntax:'a == b, a != b, a > b', note:"== vergleicht Werte."},
+    {topic:"Bedingung", syntax:'if x > 5:\n    ...\nelse:\n    ...', note:"Einrückung statt Klammern!"},
+    {topic:"for-Schleife", syntax:'for i in range(5):\n    ...', note:"range(5) = 0 bis 4."},
+    {topic:"while-Schleife", syntax:'while x < 5:\n    ...', note:"Läuft solange Bedingung wahr ist."},
+    {topic:"Funktion", syntax:'def addiere(a, b):\n    return a+b', note:"'def' leitet Funktionen ein."},
+    {topic:"Liste", syntax:'l = [1, 2, 3]\nl.append(4)', note:"Eckige Klammern, dynamische Größe."},
+  ],
+  java: [
+    {topic:"Ausgabe", syntax:'System.out.println("Text");', note:"Gibt Text mit Zeilenumbruch aus."},
+    {topic:"Kommentar", syntax:'// Das ist ein Kommentar', note:"Wird vom Computer ignoriert."},
+    {topic:"Variable", syntax:'int zahl = 5;\nString text = "Hi";', note:"Typ ist Pflicht."},
+    {topic:"Textverkettung", syntax:'"Hallo " + name', note:"+ verbindet Texte."},
+    {topic:"Vergleich", syntax:'a == b, a != b, a > b', note:"Bei Objekten besser .equals()."},
+    {topic:"Bedingung", syntax:'if (x > 5) { ... }\nelse { ... }', note:"Block in geschweiften Klammern."},
+    {topic:"for-Schleife", syntax:'for (int i=0; i<5; i++) { ... }', note:"Kopf: Start; Bedingung; Schritt."},
+    {topic:"while-Schleife", syntax:'while (x < 5) { ... }', note:"Läuft solange Bedingung wahr ist."},
+    {topic:"Methode", syntax:'static int addiere(int a, int b) {\n  return a+b;\n}', note:"Rückgabetyp vor dem Namen."},
+    {topic:"Array", syntax:'int[] arr = {1, 2, 3};', note:"Feste Größe."},
+  ],
+  cpp: [
+    {topic:"Ausgabe", syntax:'cout << "Text";', note:"#include <iostream> nötig."},
+    {topic:"Kommentar", syntax:'// Das ist ein Kommentar', note:"Wird vom Computer ignoriert."},
+    {topic:"Variable", syntax:'int zahl = 5;\nstring text = "Hi";', note:"Typ ist Pflicht."},
+    {topic:"Textverkettung", syntax:'"Hallo " + name', note:"string aus <string> nötig."},
+    {topic:"Vergleich", syntax:'a == b, a != b, a > b', note:"== vergleicht Werte."},
+    {topic:"Bedingung", syntax:'if (x > 5) { ... }\nelse { ... }', note:"Block in geschweiften Klammern."},
+    {topic:"for-Schleife", syntax:'for (int i=0; i<5; i++) { ... }', note:"Kopf: Start; Bedingung; Schritt."},
+    {topic:"while-Schleife", syntax:'while (x < 5) { ... }', note:"Läuft solange Bedingung wahr ist."},
+    {topic:"Funktion", syntax:'int addiere(int a, int b) {\n  return a+b;\n}', note:"Rückgabetyp vor dem Namen."},
+    {topic:"Vector", syntax:'vector<int> v = {1,2,3};', note:"#include <vector> nötig."},
+  ],
+  lua: [
+    {topic:"Ausgabe", syntax:'print("Text")', note:"Gibt Text mit Zeilenumbruch aus."},
+    {topic:"Kommentar", syntax:'-- Das ist ein Kommentar', note:"Wird vom Computer ignoriert."},
+    {topic:"Variable", syntax:'local zahl = 5\nlocal text = "Hi"', note:"Immer 'local' davorschreiben."},
+    {topic:"Textverkettung", syntax:'"Hallo " .. name', note:"Zwei Punkte statt +."},
+    {topic:"Vergleich", syntax:'a == b, a ~= b, a > b', note:"~= bedeutet 'ungleich'!"},
+    {topic:"Bedingung", syntax:'if x > 5 then\n  ...\nelse\n  ...\nend', note:"'then' + 'end' statt Klammern."},
+    {topic:"for-Schleife", syntax:'for i=1,5 do\n  ...\nend', note:"1 bis 5 INKLUSIVE."},
+    {topic:"while-Schleife", syntax:'while x < 5 do\n  ...\nend', note:"Läuft solange Bedingung wahr ist."},
+    {topic:"Funktion", syntax:'function addiere(a, b)\n  return a+b\nend', note:"'function' ... 'end'."},
+    {topic:"Tabelle", syntax:'local t = {1, 2, 3}', note:"Index startet bei 1, nicht 0!"},
+  ],
+};
+
 const EXERCISES = {
   e01:{lesson:"l01",type:"mc",q:"Welche Methode gibt Text in der Konsole aus?",opts:["Console.WriteLine()","Console.Print()","System.Show()","Print.Console()"],correct:0,expl:"Console.WriteLine() ist die Standardmethode für Konsolen-Ausgaben.",hint:"Beginnt mit 'Console.'",xp:20,coins:10},
   e02:{lesson:"l01",type:"code",q:"Schreibe Code, der \"Hallo C#!\" ausgibt.",keywords:["Console.WriteLine","Hallo C#!"],expl:"Console.WriteLine(\"Hallo C#!\");",hint:"Vergiss die Anführungszeichen nicht.",xp:20,coins:10},
@@ -563,6 +637,8 @@ const ACHIEVEMENTS = [
   {id:"a13", title:"Quiz-Blitz", desc:"Erreiche eine Quiz-Rush-Serie von 10 richtigen Antworten.", icon:"⚡", check:p=>p.quizRushBestStreak>=10, xp:100, coins:60, gems:1},
   {id:"a14", title:"Allrounder", desc:"Spiele alle 4 Arcade-Spiele mindestens einmal.", icon:"🕹️", check:p=>p.gamesPlayed && Object.keys(p.gamesPlayed).length>=4, xp:70, coins:40, gems:1},
   {id:"a15", title:"Level 10 — Meister", desc:"Erreiche Level 10.", icon:"👑", check:p=>p.level>=10, xp:0, coins:150, gems:5},
+  {id:"a16", title:"Geprüft", desc:"Bestehe deine erste Klausur.", icon:"📝", check:p=>(p.examsPassed||0)>=1, xp:60, coins:30, gems:1},
+  {id:"a17", title:"Klausuren-Ass", desc:"Schreibe eine perfekte Klausur (alle Fragen richtig).", icon:"🏅", check:p=>(p.examsPerfect||0)>=1, xp:100, coins:50, gems:2},
 ];
 
 const AVATARS = ["🧑‍💻","👩‍💻","🧑‍🚀","🦊","🐱","🐼","🐧","🦄","🐸","🤖","🐨","🦁"];
@@ -587,3 +663,12 @@ const MEMORY_PAIRS = [
   {term:"List<T>", def:"dynamische Sammlung"},
   {term:"try/catch", def:"fängt Laufzeitfehler ab"},
 ];
+
+/* ---------- TAB-VERVOLLSTÄNDIGUNG: Schlüsselwörter je Sprache ---------- */
+const KEYWORDS_BY_COURSE = {
+  csharp: ["Console.WriteLine(","Console.ReadLine(","if (","else","for (","while (","foreach (","return","class ","public ","static ","void ","int ","string ","bool ","double ","new ","List<","true","false"],
+  python: ["print(","if ","elif ","else:","for ","while ","def ","return","class ","import ","True","False","None","range(","len(","append(","input("],
+  java: ["System.out.println(","public class ","public static void main(","if (","else","for (","while (","return","int ","String ","boolean ","double ","new ","static ","void ","true","false"],
+  cpp: ["cout << ","cin >> ","#include <iostream>","using namespace std;","int main(","if (","else","for (","while (","return","int ","string ","bool ","double ","vector<","true","false"],
+  lua: ["print(","if ","then","elseif ","else","end","for ","while ","do","function ","return","local ","true","false","nil"],
+};

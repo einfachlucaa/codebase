@@ -9,6 +9,8 @@ function renderAuth(){
   const err = state.authError ? `<div class="error-text">${escapeHtml(state.authError)}</div>` : `<div class="error-text"></div>`;
   const busy = state.authBusy;
   const mode = state.authMode;
+  const footer = `<div class="auth-footer">© ${new Date().getFullYear()} CodeBase · <button class="btn-ghost" onclick="setAuthMode('impressum')">Impressum</button> · <button class="btn-ghost" onclick="setAuthMode('datenschutz')">Datenschutz</button></div>`;
+  if (mode==="impressum" || mode==="datenschutz") return renderLegalPage(mode) + footer;
   const tabs = `<div class="auth-tabs">
     <button class="auth-tab ${mode==='login'?'active':''}" onclick="setAuthMode('login')">${icon('key',16)} Login</button>
     <button class="auth-tab ${mode==='register'?'active':''}" onclick="setAuthMode('register')">${icon('userPlus',16)} Registrieren</button>
@@ -18,7 +20,7 @@ function renderAuth(){
 
   if (mode==="login"){
     return `
-    <div class="auth-wrap"><div class="card auth-card">
+    <div class="auth-wrap"><div><div class="card auth-card">
       ${tabs}
       ${logo}
       <div class="title" style="text-align:center;">Willkommen zurück!</div>
@@ -38,10 +40,10 @@ function renderAuth(){
           <textarea id="unbanReason" rows="2" placeholder="Warum sollte dein Konto entsperrt werden?" style="width:100%; margin-bottom:8px;"></textarea>
           <button class="btn btn-secondary" style="width:100%;" onclick="submitUnbanRequest('${escapeHtml(state.wasBannedUsername)}', document.getElementById('unbanReason').value)">Entsperrung beantragen</button>
         </div>` : ""}
-    </div></div>`;
+    </div>${footer}</div></div>`;
   }
   return `
-  <div class="auth-wrap"><div class="card auth-card">
+  <div class="auth-wrap"><div><div class="card auth-card">
     ${tabs}
     ${logo}
     <div class="title" style="text-align:center;">Konto erstellen</div>
@@ -56,7 +58,30 @@ function renderAuth(){
     ${err}
     <button class="btn btn-primary" style="width:100%; margin:14px 0;" ${busy?"disabled":""}
       onclick="doRegister(document.getElementById('regUser').value, document.getElementById('regPass').value, document.getElementById('regPass2').value)">${busy?"Erstelle Konto...":"Registrieren"}</button>
-  </div></div>`;
+  </div>${footer}</div></div>`;
+}
+function legalContent(mode){
+  const isImpressum = mode==="impressum";
+  return isImpressum ? `
+      <div class="warn-banner">⚠️ Platzhalter — der Betreiber dieser Website muss hier die echten Pflichtangaben nach § 5 DDG (ehem. TMG) einsetzen, bevor die Seite öffentlich genutzt wird.</div>
+      <div class="body-text" style="margin-top:14px;"><b>Angaben gemäß § 5 DDG</b><br/>
+      [Vor- und Nachname / Firmenname]<br/>[Straße und Hausnummer]<br/>[PLZ und Ort]</div>
+      <div class="body-text" style="margin-top:14px;"><b>Kontakt</b><br/>E-Mail: [deine E-Mail-Adresse]</div>
+      <div class="body-text" style="margin-top:14px;"><b>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</b><br/>[Name, Anschrift wie oben]</div>
+    ` : `
+      <div class="warn-banner">⚠️ Diese Vorlage ersetzt keine Rechtsberatung — für eine rechtssichere Datenschutzerklärung einen Generator oder Anwalt nutzen.</div>
+      <div class="body-text" style="margin-top:14px;"><b>Welche Daten werden gespeichert?</b><br/>Nutzername, gehashtes Passwort (nie im Klartext), dein Lernfortschritt (Level/XP/Coins), freiwillig hochgeladene Profilbilder/Banner, sowie zu Sicherheitszwecken deine IP-Adresse bei Registrierung/Login (Schutz vor Konten-Missbrauch nach Sperren).</div>
+      <div class="body-text" style="margin-top:14px;"><b>Warum?</b><br/>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung — Bereitstellung des Kontos) sowie lit. f (berechtigtes Interesse an Missbrauchsschutz).</div>
+      <div class="body-text" style="margin-top:14px;"><b>Deine Rechte</b><br/>Du kannst jederzeit Auskunft über deine gespeicherten Daten, deren Löschung oder Berichtigung verlangen. Kontakt: [deine E-Mail-Adresse]</div>
+    `;
+}
+function renderLegalPage(mode){
+  const isImpressum = mode==="impressum";
+  return `<div class="auth-wrap"><div><div class="card auth-card" style="width:620px; text-align:left; max-height:80vh; overflow-y:auto;">
+    <button class="btn-ghost" onclick="setAuthMode('login')">← Zurück zum Login</button>
+    <div class="title" style="margin-top:12px;">${isImpressum?"Impressum":"Datenschutzerklärung"}</div>
+    ${legalContent(mode)}
+  </div></div></div>`;
 }
 
 /* ---------- RENDER: SHELL ---------- */
@@ -65,7 +90,7 @@ function renderShell(inner){
   const items = [
     ["dashboard", icon("home",18), "Dashboard"], ["learning", icon("book",18), "Lernen"], ["exercises", icon("target",18), "Aufgaben"],
     ["achievements", icon("trophy",18), "Erfolge"], ["games", icon("gamepad",18), "Spiele"],
-    ["projects", icon("terminal",18), "Projekte"],
+    ["projects", icon("terminal",18), "Projekte"], ["handbuch", icon("bookmark",18), "Handbuch"],
     ["shop", icon("wallet",18), "Shop"], ["subscription", icon("card",18), "Abo"], ["friends", icon("users",18), "Freunde"],
     ["leaderboard", icon("medal",18), "Leaderboard"], ["profile", icon("user",18), "Profil"], ["settings", icon("settings",18), "Einstellungen"],
   ];
@@ -77,12 +102,35 @@ function renderShell(inner){
   <div class="shell">
     <div class="sidebar">
       <div class="brand"><h1>${brandLogo()} CodeBase</h1><p>Lerne. Spiele. Vernetze dich.</p></div>
-      <div class="user-chip"><span class="av">${u.profilePicture?`<img src="${u.profilePicture}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">`:u.avatar}</span><div><div style="font-weight:600; font-size:13px;">${escapeHtml(state.currentUser)}</div><div class="muted">${roleLabel}</div></div>
-        <button class="btn-ghost" style="margin-left:auto;" title="Sound an/aus" onclick="toggleSound()">${state.soundOn?"🔊":"🔇"}</button>
+      <div class="sidebar-nav">${nav}</div>
+      <div class="sidebar-bottom">
+        ${state.userMenuOpen ? `
+        <div class="user-menu">
+          <button class="user-menu-item" onclick="state.userMenuOpen=false; goto('profile')">${icon("user",16)} Profil</button>
+          <button class="user-menu-item" onclick="state.userMenuOpen=false; goto('settings')">${icon("settings",16)} Einstellungen</button>
+          <div class="user-menu-sep"></div>
+          <button class="user-menu-item" onclick="toggleSound()">${state.soundOn?"🔊":"🔇"} Sound ${state.soundOn?"aus":"an"}</button>
+          <button class="user-menu-item user-menu-danger" onclick="state.userMenuOpen=false; logout()">${icon("logout",16)} Abmelden</button>
+        </div>` : ""}
+        <button class="user-chip" onclick="state.userMenuOpen=!state.userMenuOpen; render();">
+          <span class="av">${u.profilePicture?`<img src="${u.profilePicture}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;">`:u.avatar}</span>
+          <div style="text-align:left;"><div style="font-weight:600; font-size:13px;">${escapeHtml(state.currentUser)}</div><div class="muted">${roleLabel}</div></div>
+          <span style="margin-left:auto; color:var(--text-muted);">${icon("settings",16)}</span>
+        </button>
       </div>
-      <div style="margin-top:16px;">${nav}</div>
     </div>
     <div class="content">
+      <div class="bg-deco" aria-hidden="true">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          <circle cx="88" cy="8" r="16" fill="none" stroke="var(--accent)" stroke-width="0.4"/>
+          <circle cx="92" cy="14" r="26" fill="none" stroke="var(--accent-2)" stroke-width="0.25"/>
+          <line x1="60" y1="0" x2="100" y2="30" stroke="var(--accent)" stroke-width="0.3"/>
+          <line x1="70" y1="0" x2="100" y2="22" stroke="var(--ios-pink)" stroke-width="0.2"/>
+          <circle cx="6" cy="92" r="20" fill="none" stroke="var(--gem)" stroke-width="0.3"/>
+          <line x1="0" y1="70" x2="30" y2="100" stroke="var(--gem)" stroke-width="0.25"/>
+          <circle cx="50" cy="50" r="1" fill="var(--accent)" opacity="0.4"/>
+        </svg>
+      </div>
       ${u.warnings && u.warnings.length>0 ? `<div class="warn-banner" style="margin-bottom:16px;">⚠️ Du hast ${u.warnings.length} Verwarnung(en) erhalten. Letzter Grund: "${escapeHtml(u.warnings[u.warnings.length-1].reason)}". Bei weiteren Verstößen wird dein Konto automatisch gesperrt.</div>` : ""}
       ${inner}
     </div>
@@ -202,6 +250,7 @@ function renderDashboard(){
   const coursePct = total ? Math.round(100*completed/total) : 0;
   const nextLesson = courseLessons.find(l=>lessonUnlocked(l,p) && !p.completedLessons.includes(l.id));
   const courseMeta = COURSES.find(c=>c.id===state.course) || COURSES[0];
+  const recentAch = ACHIEVEMENTS.filter(a=>p.unlocked.includes(a.id)).slice(-3).reverse();
   return `
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:14px;">
     <div style="display:flex; align-items:center;">
@@ -234,17 +283,56 @@ function renderDashboard(){
     </div>
     <div class="card">
       <div class="muted">🎯 TAGESZIEL</div>
-      <div class="body-text" style="margin:8px 0 12px;">${p.daily.exToday}/3 Aufgaben · ${p.daily.xpToday}/100 XP heute</div>
-      ${(p.daily.exToday>=3||p.daily.xpToday>=100||p.daily.lessonsToday>=1) && !p.daily.claimed ?
-        `<button class="btn btn-primary" onclick="claimDaily()">+100 Coins abholen</button>` : ""}
+      <div class="body-text" style="margin:8px 0 12px;">${p.daily.exToday}/3 Aufgaben · ${p.daily.xpToday}/15 XP heute</div>
+      ${(p.daily.exToday>=3||p.daily.xpToday>=15||p.daily.lessonsToday>=1) && !p.daily.claimed ?
+        `<button class="btn btn-primary" onclick="claimDaily()">+10 Coins abholen</button>` : ""}
     </div>
   </div>
-  <div class="section-title">Schnellzugriff</div>
+
+  <div class="section-title" style="margin-top:22px;">Deine Kurse</div>
+  <div class="ach-grid" style="margin-bottom:22px;">
+    ${COURSES.map(c=>{
+      const ls = lessonsForCourse(c.id);
+      const done = ls.filter(l=>p.completedLessons.includes(l.id)).length;
+      const pctC = ls.length ? Math.round(100*done/ls.length) : 0;
+      return `<div class="card" style="cursor:pointer;" onclick="switchCourse('${c.id}'); goto('learning');">
+        <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:20px;">${c.icon}</span><b>${escapeHtml(c.title)}</b></div>
+        <div class="progressbar-track" style="margin-top:10px;"><div class="progressbar-fill" style="width:${pctC}%; background:${c.color};"></div></div>
+        <div class="muted" style="margin-top:6px;">${done}/${ls.length} Lektionen</div>
+      </div>`;
+    }).join("")}
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+        Zuletzt freigeschaltet <button class="btn-ghost" onclick="goto('achievements')">Alle ansehen</button>
+      </div>
+      ${recentAch.length ? recentAch.map(a=>`<div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+        <span style="font-size:22px;">${a.icon}</span><div><b>${escapeHtml(a.title)}</b><div class="muted">${escapeHtml(a.desc)}</div></div>
+      </div>`).join("") : `<div class="body-text muted">Noch keine Erfolge — leg los!</div>`}
+    </div>
+    <div class="card">
+      <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+        Top 3 <button class="btn-ghost" onclick="goto('leaderboard')">Leaderboard</button>
+      </div>
+      ${state.dashboardTop3===null ? `<div class="body-text muted">Lade...</div>` :
+        state.dashboardTop3.map((r,i)=>`<div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+          <span>${i===0?"🥇":i===1?"🥈":"🥉"}</span><span style="font-size:18px;">${r.avatar}</span>
+          <b style="flex:1;">${escapeHtml(r.username)}</b><span class="muted">${r.score} XP</span>
+        </div>`).join("")}
+      ${state.friendsData ? `<div class="muted" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+        ${icon("users",13)} ${state.friendsData.friends.length} Freunde ${state.friendsData.incoming.length ? `· <span style="color:var(--accent);">${state.friendsData.incoming.length} neue Anfrage(n)</span>`:""}
+      </div>` : ""}
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:22px;">Schnellzugriff</div>
   <div class="quick-grid">
-    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('learning')">📚 C# lernen</button>
-    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('exercises')">🎯 Aufgaben</button>
-    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('arcade')">🎮 Minispiele</button>
-    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('leaderboard')">🥇 Leaderboard</button>
+    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('learning')">${icon("book",16)} Lernen</button>
+    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('exercises')">${icon("target",16)} Aufgaben</button>
+    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('games')">${icon("gamepad",16)} Spiele</button>
+    <button class="btn btn-secondary" style="padding:16px 20px;" onclick="goto('leaderboard')">${icon("medal",16)} Leaderboard</button>
   </div>
   <div class="warn-banner" style="margin-top:24px;">✅ Dein Fortschritt wird automatisch in der Datenbank gespeichert — du kannst dich von jedem Gerät aus wieder einloggen.</div>
   `;
@@ -253,9 +341,9 @@ function claimDaily(){
   const p=progress();
   // Sicherheitsfix: Guard gegen Mehrfachaufruf (z.B. über die Browser-Konsole).
   if (p.daily.claimed) return;
-  const unlocked = p.daily.exToday>=3 || p.daily.xpToday>=100 || p.daily.lessonsToday>=1;
+  const unlocked = p.daily.exToday>=3 || p.daily.xpToday>=15 || p.daily.lessonsToday>=1;
   if (!unlocked) return;
-  p.daily.claimed=true; addCoins(p,100); playSound("coin"); render();
+  p.daily.claimed=true; addCoins(p,10); playSound("coin"); render();
 }
 
 /* ---------- RENDER: LEARNING ---------- */
@@ -314,21 +402,47 @@ function renderLessonDetail(){
 
 /* ---------- RENDER: PRACTICE ---------- */
 function renderPractice(){
+  if (state.examSession) return renderExam();
   let xpGained=0, coinsGained=0;
   state.practiceInstances.forEach(i=>{ if(i.correct){ xpGained+=EXERCISES[i.exId].xp; coinsGained+=EXERCISES[i.exId].coins; }});
   let html = `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;">
     <div class="title">🎯 Aufgaben</div>${renderCourseSwitcher()}
   </div>
-  <div class="body-text" style="margin-bottom:16px;">Freies Training: zufällige Aufgaben aus dem gewählten Kurs für Extra-XP und Coins.</div>
-  <div class="card" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+  <div class="body-text" style="margin-bottom:12px;">Freies Training: zufällige Aufgaben aus dem gewählten Kurs für Extra-XP und Coins.</div>
+  <div class="card" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
     <div style="display:flex; gap:24px;">
       <div><div class="muted">XP DIESE RUNDE</div><div style="font-size:20px; font-weight:700; color:var(--xp);">${xpGained}</div></div>
       <div><div class="muted">COINS DIESE RUNDE</div><div style="font-size:20px; font-weight:700; color:var(--coin);">${coinsGained}</div></div>
     </div>
-    <button class="btn btn-primary" onclick="loadPractice(); render();">🔀 Neue Aufgaben</button>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-secondary" onclick="loadPractice(); render();">🔀 Neue Aufgaben</button>
+      <button class="btn btn-primary" onclick="startExam()">${icon("edit",16)} Klausur starten (10 Fragen)</button>
+    </div>
   </div>`;
   state.practiceInstances.forEach((inst,idx)=>{ html += renderExerciseWidget(inst, idx, "practice"); });
   return html;
+}
+function renderExam(){
+  const ex = state.examSession;
+  if (ex.finished){
+    const r = ex.result;
+    return `<div class="title">📝 Klausur-Ergebnis</div>
+    <div class="card gradient-bg casino-result-pop" style="text-align:center; margin:16px 0;">
+      <div style="font-size:40px; font-weight:800; color:white;">Note ${r.grade}</div>
+      <div style="color:#ede9ff; margin:6px 0;">${r.correctCount}/${r.total} richtig (${r.pct}%) — ${r.passed?"Bestanden ✓":"Nicht bestanden"}</div>
+      <div style="color:#ede9ff;">+${r.coinsEarned} Coins</div>
+    </div>
+    ${r.unlocked.length ? `<div class="body-text" style="margin-bottom:14px;">🏆 Neuer Erfolg: ${r.unlocked.map(a=>escapeHtml(a.title)).join(", ")}</div>` : ""}
+    <button class="btn btn-primary" onclick="exitExam()">Zurück zu den Aufgaben</button>`;
+  }
+  const inst = ex.instances[ex.index];
+  return `<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+    <div class="title" style="margin:0;">📝 Klausur — Frage ${ex.index+1}/${ex.instances.length}</div>
+    <button class="btn btn-secondary" onclick="exitExam()">Abbrechen</button>
+  </div>
+  <div class="progressbar-track" style="margin-bottom:18px;"><div class="progressbar-fill" style="width:${100*(ex.index)/ex.instances.length}%;"></div></div>
+  ${renderExerciseWidget(inst, ex.index, "exam")}
+  ${inst.answered ? `<button class="btn btn-primary" style="margin-top:10px;" onclick="examNext()">${ex.index<ex.instances.length-1?"Nächste Frage":"Klausur abschließen"} ${icon("arrowRight",16)}</button>` : ""}`;
 }
 
 /* ---------- RENDER: ACHIEVEMENTS ---------- */
@@ -691,7 +805,10 @@ function renderCookieClicker(){
   html += `
   <div class="two-col">
     <div class="card" style="text-align:center;">
-      <button onclick="clickCookie()" style="border:none; background:none; cursor:pointer; font-size:120px; transition:transform .08s;" onmousedown="this.style.transform='scale(0.9)'" onmouseup="this.style.transform='scale(1)'">🍪</button>
+      <div class="cookie-stage">
+        <button onclick="clickCookie()" class="cookie-btn ${(state.cookieBounce||0)%2===0?'cb-a':'cb-b'}">🍪</button>
+        ${state.cookieBounce ? `<div class="cookie-float" key="${state.cookieBounce}">+${s.clickPower}</div>` : ""}
+      </div>
       <div class="muted" style="margin-top:10px;">Klick-Power: <b>${s.clickPower}</b> · Auto: <b>${s.autoPerSecond}/s</b> ${s.multiplier>1?`· <span style="color:var(--success);">x${s.multiplier.toFixed(2)} Abo-Boost</span>`:""}</div>
     </div>
     <div class="card">
@@ -780,17 +897,19 @@ function renderProjects(){
   if (state.activeProject) return renderProjectEditor();
   let html = `<div class="title">${icon("terminal",26)} Projekte</div>
   <div class="body-text" style="margin-bottom:6px;">Eigene Code-Projekte erstellen, speichern und ausführen.</div>
-  <div class="body-text muted" style="margin-bottom:18px;">Ausführung läuft über einen externen, sicher gesandboxten Dienst (Piston) — dein eigener Code läuft nie auf unserem Server.</div>
+  <div class="body-text muted" style="margin-bottom:18px;">JavaScript & Python laufen direkt in deinem Browser (Sandbox-iframe bzw. WebAssembly) — kein externer Dienst, keine Wartezeit. Andere Sprachen sind aktuell nur zum Schreiben/Speichern da.</div>
   <button class="btn btn-primary" style="margin-bottom:20px;" onclick="createNewProject()">${icon("plus",16)} Neues Projekt</button>`;
   if (!state.projects) return html + `<div class="body-text">Lade Projekte...</div>`;
   if (!state.projects.length) return html + `<div class="body-text">Noch keine Projekte — leg dein erstes an!</div>`;
   html += `<div class="ach-grid">`;
   state.projects.forEach(p=>{
     const lang = PROJECT_LANGS.find(l=>l.id===p.language);
+    const runnable = p.language==="javascript" || p.language==="python";
     html += `<div class="card" style="cursor:pointer;" onclick="openProject('${p._id}')">
       <div class="section-title" style="margin-bottom:4px;">${escapeHtml(p.name)}</div>
-      <div class="pill" style="margin:0 0 8px;">${lang?lang.label:p.language}</div>
-      <div class="muted">Bearbeitet: ${new Date(p.updatedAt).toLocaleDateString('de-DE')}</div>
+      <div class="pill" style="margin:0 8px 8px 0;">${lang?lang.label:p.language}</div>
+      ${runnable ? `<span class="pill" style="background:rgba(48,209,88,0.16); color:var(--success);">${icon("play",11)} lauffähig</span>` : ""}
+      <div class="muted" style="margin-top:8px;">Bearbeitet: ${new Date(p.updatedAt).toLocaleDateString('de-DE')}</div>
     </div>`;
   });
   return html + `</div>`;
@@ -819,7 +938,7 @@ function renderProjectEditor(){
       <div class="ide-editor-wrap">
         <div class="ide-gutter" id="ideGutter">${lineNumbers}</div>
         <textarea class="code-editor ide-textarea" id="ideTextarea" spellcheck="false"
-          oninput="editProjectCode(this.value); syncIdeGutter();"
+          oninput="editProjectCode(this.value); syncIdeGutter();" onkeydown="ideHandleTab(event);"
           onscroll="document.getElementById('ideGutter').scrollTop=this.scrollTop;">${escapeHtml(p.code||"")}</textarea>
       </div>
     </div>
@@ -827,7 +946,7 @@ function renderProjectEditor(){
       <span>${lang?lang.label:p.language}</span>
       <span class="muted">${lineCount} Zeilen</span>
       <span style="flex:1;"></span>
-      <span class="muted">Auto-Save aktiv</span>
+      <span class="muted">${p.dirty?"● Ungespeicherte Änderungen":"✓ Gespeichert"}</span>
     </div>
   </div>
   <div class="section-title" style="margin-top:18px;">${icon("activity",16)} Ausgabe</div>
@@ -843,6 +962,35 @@ function syncIdeGutter(){
   if (!ta || !gutter) return;
   const lines = ta.value.split("\n").length;
   gutter.textContent = Array.from({length:lines}, (_,i)=>i+1).join("\n");
+}
+
+/* ---------- RENDER: HANDBUCH ---------- */
+function renderHandbuch(){
+  const tab = state.handbuchTab || "intro";
+  const tabs = `<div class="segmented" style="margin-bottom:20px; flex-wrap:wrap;">
+    <button class="${tab==='intro'?'active':''}" onclick="state.handbuchTab='intro'; render();">${icon("bookmark",15)} Was ist Code?</button>
+    ${COURSES.map(c=>`<button class="${tab===c.id?'active':''}" onclick="state.handbuchTab='${c.id}'; render();">${c.icon} ${escapeHtml(c.title)}</button>`).join("")}
+  </div>`;
+  let inner;
+  if (tab==="intro"){
+    inner = HANDBUCH_INTRO.map(s=>`<div class="card" style="margin-bottom:14px;">
+      <div class="section-title">${escapeHtml(s.h)}</div>
+      <div class="body-text">${escapeHtml(s.body)}</div>
+    </div>`).join("");
+  } else {
+    const rows = REFERENCE[tab] || [];
+    inner = `<div class="card" style="padding:0; overflow-x:auto;"><table class="lb">
+      <tr><th style="text-align:left; padding:10px;">Thema</th><th style="text-align:left;">Syntax</th><th style="text-align:left;">Hinweis</th></tr>
+      ${rows.map(r=>`<tr>
+        <td style="padding:10px; font-weight:600; white-space:nowrap;">${escapeHtml(r.topic)}</td>
+        <td><div class="code-block" style="margin:6px 0; font-size:12.5px;">${escapeHtml(r.syntax)}</div></td>
+        <td class="muted" style="padding:10px;">${escapeHtml(r.note)}</td>
+      </tr>`).join("")}
+    </table></div>`;
+  }
+  return `<div class="title">${icon("bookmark",26)} Handbuch</div>
+  <div class="body-text" style="margin-bottom:16px;">Grundlagen für absolute Einsteiger und ein Spickzettel zum schnellen Nachschlagen pro Sprache.</div>
+  ${tabs}${inner}`;
 }
 
 /* ---------- RENDER: ADMIN-PANEL ---------- */
@@ -1090,7 +1238,15 @@ function renderSettings(){
   </div>
   <div class="card" style="width:480px;">
     <div class="section-title">Über CodeBase</div>
-    <div class="body-text">Eine spielerische Lernplattform für C#-Einsteiger mit Arcade-Minispielen, Coin-Wirtschaft und Leaderboard. Läuft lokal über Node.js + MongoDB.</div>
+    <div class="body-text">Eine spielerische Lernplattform für mehrere Programmiersprachen mit Arcade-Minispielen, Coin-Wirtschaft und Leaderboard.</div>
+  </div>
+  <div class="card" style="width:480px; margin-top:16px;">
+    <div class="section-title">Rechtliches</div>
+    <div style="display:flex; gap:10px; margin-bottom:${state.settingsLegal?'14px':'0'};">
+      <button class="btn-ghost" onclick="state.settingsLegal = state.settingsLegal==='impressum'?null:'impressum'; render();">Impressum</button>
+      <button class="btn-ghost" onclick="state.settingsLegal = state.settingsLegal==='datenschutz'?null:'datenschutz'; render();">Datenschutz</button>
+    </div>
+    ${state.settingsLegal ? legalContent(state.settingsLegal) : ""}
   </div>`;
 }
 
@@ -1108,6 +1264,7 @@ function render(){
     case "achievements": inner = renderAchievements(); break;
     case "games": case "arcade": case "cookie": case "factory": case "casino": inner = renderGames(); break;
     case "projects": inner = renderProjects(); break;
+    case "handbuch": inner = renderHandbuch(); break;
     case "shop": inner = renderShop(); break;
     case "subscription": inner = renderSubscription(); break;
     case "friends": inner = renderFriends(); break;
