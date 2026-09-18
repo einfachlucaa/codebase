@@ -8,7 +8,7 @@ const ALLOWED_FIELDS = [
   "level", "xp", "streak", "lastLearnDate",
   "completedLessons", "completedExercises", "unlocked", "totalSolved",
   "currentStreak", "bestStreak", "bubbleHigh", "tapHigh", "memoryHigh",
-  "quizRushHigh", "memoryPerfect", "quizRushBestStreak", "arcadePlays", "pacmanHigh",
+  "quizRushHigh", "memoryPerfect", "quizRushBestStreak", "arcadePlays", "pacmanHigh", "snakeHigh",
   "gamesPlayed", "daily", "exerciseCooldowns", "lessonCooldowns", "examCooldowns", "examsPassed", "examsPerfect",
   // "coins", "gems", "totalCoinsEarned" bewusst NICHT hier drin — die laufen
   // als Delta (siehe unten), nicht als absoluter Wert vom Client.
