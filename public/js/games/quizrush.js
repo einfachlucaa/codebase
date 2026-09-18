@@ -53,14 +53,14 @@ function quizRushAnswer(optIdx){
     const p = progress();
     p.quizRushBestStreak = Math.max(p.quizRushBestStreak||0, q.streak);
     checkAchievements(p);
-    setTimeout(()=>{ if(!q.over){ nextQuizRushQuestion(); render(); } }, 500);
+    setTimeout(()=>{ if(!q.over){ nextQuizRushQuestion(); refreshLiveArea(); } }, 500);
   } else {
     q.streak = 0; q.lives--;
     q.feedback = optIdx<0 ? "Zeit abgelaufen!" : "Leider falsch.";
-    if (q.lives<=0){ setTimeout(()=>{ endQuizRush(); render(); }, 500); }
-    else setTimeout(()=>{ if(!q.over){ nextQuizRushQuestion(); render(); } }, 900);
+    if (q.lives<=0){ setTimeout(()=>{ endQuizRush(); refreshLiveArea(); }, 500); }
+    else setTimeout(()=>{ if(!q.over){ nextQuizRushQuestion(); refreshLiveArea(); } }, 900);
   }
-  render();
+  refreshLiveArea();
 }
 function endQuizRush(){
   const q = state.quizrush, p = progress();
@@ -112,5 +112,5 @@ function renderQuizRushGame(){
   return html+`</div></div>`;
 }
 function renderQuizRushOnly(){
-  if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="quizrush") render();
+  if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="quizrush") refreshLiveArea();
 }

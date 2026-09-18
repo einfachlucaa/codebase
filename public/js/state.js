@@ -41,6 +41,8 @@ let state = {
   adminUnbanRequests: null,
   soundOn: true,
   userMenuOpen: false,
+  lastSyncedEconomy: null,
+  underReviewBy: null,
   casinoBusy: false,
   casinoResult: null,  // letztes Casino-Ergebnis (für Animation/Anzeige)
   casinoSpinFrame: null, // aktuell angezeigte Zufallssymbole während des Slot-Spins

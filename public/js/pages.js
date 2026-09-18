@@ -131,6 +131,7 @@ function renderShell(inner){
           <circle cx="50" cy="50" r="1" fill="var(--accent)" opacity="0.4"/>
         </svg>
       </div>
+      ${state.underReviewBy ? `<div class="review-banner">${icon("shield",18)} <b>Dein Account wird gerade von einem Admin geprüft.</b> Das ist eine normale Moderations-Maßnahme — mach einfach weiter wie gewohnt.</div>` : ""}
       ${u.warnings && u.warnings.length>0 ? `<div class="warn-banner" style="margin-bottom:16px;">⚠️ Du hast ${u.warnings.length} Verwarnung(en) erhalten. Letzter Grund: "${escapeHtml(u.warnings[u.warnings.length-1].reason)}". Bei weiteren Verstößen wird dein Konto automatisch gesperrt.</div>` : ""}
       ${inner}
     </div>
@@ -872,7 +873,7 @@ function renderSubscription(){
 
 /* ---------- RENDER: SPIELE-HUB (Arcade, Cookie Clicker, Factory, Casino in einem Modul) ---------- */
 function renderGames(){
-  if (state.arcadeGame) return renderArcade(); // laufendes Arcade-Spiel füllt die ganze Seite
+  if (state.arcadeGame) return `<div id="liveArea">${renderArcade()}</div>`; // laufendes Arcade-Spiel füllt die ganze Seite
   const tabs = [
     ["arcade", icon("gamepad",16), "Arcade"],
     ["cookie", icon("cookie",16), "Cookie Clicker"],
@@ -882,14 +883,27 @@ function renderGames(){
   const tabBar = `<div class="segmented" style="margin-bottom:20px;">${tabs.map(([k,ic,label])=>
     `<button class="${state.gamesTab===k?'active':''}" onclick="switchGamesTab('${k}')">${ic} ${label}</button>`
   ).join("")}</div>`;
-  let inner;
-  if (state.gamesTab==="cookie") inner = renderCookieClicker();
-  else if (state.gamesTab==="factory") inner = renderFactory();
-  else if (state.gamesTab==="casino") inner = renderCasino();
-  else inner = renderArcade();
   return `<div class="title">${icon("gamepad",26)} Spiele</div>
   <div class="body-text" style="margin-bottom:16px;">Alle Spiele an einem Ort — Arcade-Minispiele, Idle-Games und Casino.</div>
-  ${tabBar}${inner}`;
+  ${tabBar}<div id="liveArea">${liveAreaInner()}</div>`;
+}
+// Liefert nur den Inhalt des dynamischen Spiel-Bereichs (ohne Sidebar/Tabs drumrum) —
+// wird sowohl beim vollen render() als auch beim gezielten refreshLiveArea() genutzt,
+// damit beide IMMER exakt dasselbe zeigen.
+function liveAreaInner(){
+  if (state.arcadeGame) return renderArcade();
+  if (state.gamesTab==="cookie") return renderCookieClicker();
+  if (state.gamesTab==="factory") return renderFactory();
+  if (state.gamesTab==="casino") return renderCasino();
+  return renderArcade();
+}
+// Aktualisiert NUR den Spiel-Bereich, ohne Sidebar/Navigation/Rest der Seite
+// neu zu zeichnen -> kein Flackern mehr bei schnellen Spiel-Ticks (Pac-Man,
+// Cookie-Klicks, Tap-Timer, Quiz-Rush-Timer, Slot-Spin).
+function refreshLiveArea(){
+  const el = document.getElementById("liveArea");
+  if (!el){ render(); return; } // Zielbereich existiert (noch) nicht -> normaler voller Render als Fallback
+  el.innerHTML = liveAreaInner();
 }
 
 /* ---------- RENDER: PROJEKTE / CODE-IDE ---------- */
@@ -897,14 +911,14 @@ function renderProjects(){
   if (state.activeProject) return renderProjectEditor();
   let html = `<div class="title">${icon("terminal",26)} Projekte</div>
   <div class="body-text" style="margin-bottom:6px;">Eigene Code-Projekte erstellen, speichern und ausführen.</div>
-  <div class="body-text muted" style="margin-bottom:18px;">JavaScript & Python laufen direkt in deinem Browser (Sandbox-iframe bzw. WebAssembly) — kein externer Dienst, keine Wartezeit. Andere Sprachen sind aktuell nur zum Schreiben/Speichern da.</div>
+  <div class="body-text muted" style="margin-bottom:18px;">JavaScript, Python & Lua laufen direkt in deinem Browser (Sandbox-iframe bzw. WebAssembly/JS-VM) — kein externer Dienst, keine Wartezeit. Java/C++/C# sind aktuell nur zum Schreiben/Speichern da.</div>
   <button class="btn btn-primary" style="margin-bottom:20px;" onclick="createNewProject()">${icon("plus",16)} Neues Projekt</button>`;
   if (!state.projects) return html + `<div class="body-text">Lade Projekte...</div>`;
   if (!state.projects.length) return html + `<div class="body-text">Noch keine Projekte — leg dein erstes an!</div>`;
   html += `<div class="ach-grid">`;
   state.projects.forEach(p=>{
     const lang = PROJECT_LANGS.find(l=>l.id===p.language);
-    const runnable = p.language==="javascript" || p.language==="python";
+    const runnable = ["javascript","python","lua"].includes(p.language);
     html += `<div class="card" style="cursor:pointer;" onclick="openProject('${p._id}')">
       <div class="section-title" style="margin-bottom:4px;">${escapeHtml(p.name)}</div>
       <div class="pill" style="margin:0 8px 8px 0;">${lang?lang.label:p.language}</div>
@@ -1225,8 +1239,19 @@ function renderSettings(){
   return `
   <div class="title">⚙ Einstellungen</div>
   <div class="card" style="width:480px; margin-bottom:16px;">
+    <div class="section-title">Profil anpassen</div>
+    <div class="field-label">Nutzername</div>
+    <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <input id="settingsUsername" type="text" value="${escapeHtml(state.currentUser)}" style="flex:1;"/>
+      <button class="btn btn-secondary" onclick="changeUsername(document.getElementById('settingsUsername').value)">Ändern</button>
+    </div>
+    <div class="field-label">Bio</div>
+    <textarea id="settingsBio" rows="2" maxlength="160" style="width:100%; margin-bottom:8px;">${escapeHtml(u.bio||"")}</textarea>
+    <button class="btn btn-secondary" style="margin-bottom:12px;" onclick="saveBio(document.getElementById('settingsBio').value)">Bio speichern</button>
+    <div class="muted">Avatar, Profilbild und Banner kannst du im <button class="btn-ghost" onclick="goto('profile')">Profil</button> ändern.</div>
+  </div>
+  <div class="card" style="width:480px; margin-bottom:16px;">
     <div class="section-title">Konto</div>
-    <div class="body-text" style="margin-bottom:6px;">Nutzername: <b>${escapeHtml(state.currentUser)}</b></div>
     <div class="body-text" style="margin-bottom:6px;">Rolle: <b>${escapeHtml(u.role)}</b></div>
     <div class="body-text" style="margin-bottom:12px;">Dein Fortschritt wird automatisch in MongoDB gespeichert und bei jedem Login geladen.</div>
     <button class="btn btn-secondary" onclick="logout()">Abmelden</button>

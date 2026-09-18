@@ -2,6 +2,7 @@
 function goto(page){
   if (page==="admin" && !isAdminUser() && !hasPermission("users.view")) return; // Guard: kein Zugriff ohne Berechtigung
   stopAdminLivePoll();
+  if (state.adminEditingUser && page!=="admin") closeAdminEdit(); // Review-Status sauber beenden, wenn man das Panel verlässt
   state.page = page;
   if (page==="learning"){ state.lessonId=null; }
   if (page==="exercises"){ loadPractice(); }
@@ -86,6 +87,11 @@ function hydrateUser(serverUser){
     progress: Object.assign(newProgress(), serverUser.progress),
   };
   state.currentUser = serverUser.username;
+  // Anker für die Delta-Berechnung beim nächsten Sync IMMER auf den frischen
+  // Server-Stand setzen (nicht auf einen evtl. veralteten lokalen Wert).
+  state.lastSyncedEconomy = { coins: state.users[serverUser.username].progress.coins, gems: state.users[serverUser.username].progress.gems };
+  state.underReviewBy = serverUser.underReviewBy || null;
+  startProgressReconcile();
 }
 
 /* ---------- AUTH-ROUTING: /login und /register als echte URLs,
@@ -149,6 +155,7 @@ async function doRegister(username, password, passwordConfirm){
 }
 async function logout(){
   exitArcadeTimers();
+  if (_reconcileTimer){ clearInterval(_reconcileTimer); _reconcileTimer=null; }
   try{ await apiPost("/auth/logout"); } catch{ /* egal, Cookie lokal trotzdem verwerfen */ }
   state.currentUser=null; state.page="dashboard"; state.adminUsers=null; state.shop=null;
   state.authMode = "login"; syncAuthUrl("login"); // nach Logout direkt zum Login, nicht zur Registrierung
@@ -175,9 +182,79 @@ function scheduleProgressSync(){
   _syncTimer = setTimeout(async ()=>{
     const u = state.users[state.currentUser];
     if (!u) return;
-    try{ await apiPut("/progress", { progress: u.progress }); }
-    catch(err){ console.warn("Sync fehlgeschlagen:", err.message); }
+    const anchor = state.lastSyncedEconomy || {coins:u.progress.coins, gems:u.progress.gems};
+    const coinsDelta = Math.max(0, u.progress.coins - anchor.coins);
+    const gemsDelta = Math.max(0, u.progress.gems - anchor.gems);
+    // coins/gems bewusst NICHT im progress-Objekt mitschicken -> die laufen
+    // nur noch als Delta, siehe Backend-Kommentar in progressController.js.
+    const { coins, gems, totalCoinsEarned, ...syncableProgress } = u.progress;
+    try{
+      const res = await apiPut("/progress", { progress: syncableProgress, coinsDelta, gemsDelta });
+      // WICHTIG (der eigentliche Fix): den vom Server zurückgegebenen, ECHTEN
+      // Stand übernehmen — nicht einfach den eigenen lokalen Wert als "korrekt"
+      // markieren. Sonst geht eine zwischenzeitliche Admin-Änderung im nächsten
+      // Sync sofort wieder unter, weil der Client sie nie gesehen hat.
+      if (res && res.progress){
+        const changed = u.progress.coins !== res.progress.coins || u.progress.gems !== res.progress.gems;
+        u.progress.coins = res.progress.coins;
+        u.progress.gems = res.progress.gems;
+        u.progress.totalCoinsEarned = res.progress.totalCoinsEarned;
+        state.lastSyncedEconomy = { coins: res.progress.coins, gems: res.progress.gems };
+        if (changed) render(); // Admin-Änderung übernommen -> sofort sichtbar machen
+      } else {
+        state.lastSyncedEconomy = { coins: u.progress.coins, gems: u.progress.gems };
+      }
+    }
+    catch(err){
+      console.warn("Sync fehlgeschlagen:", err.message);
+      if (err.status===401 || err.status===403) handleSessionEnded(err);
+    }
   }, 800);
+}
+
+/* ---------- REGELMÄSSIGER ABGLEICH MIT DER DATENBANK ----------
+   Falls dieser Tab lange offen bleibt (oder ein Admin währenddessen etwas
+   korrigiert hat), holt sich der Client alle 25s den echten, aktuellen Stand
+   aus der Datenbank -> ein veralteter Tab "gewinnt" nie mehr dauerhaft. */
+let _reconcileTimer = null;
+function startProgressReconcile(){
+  if (_reconcileTimer) return;
+  _reconcileTimer = setInterval(async ()=>{
+    if (!state.currentUser) return;
+    try{
+      // /auth/me statt /progress: liefert in einem Rutsch den echten DB-Stand
+      // (für den Abgleich) UND den "wird geprüft"-Status. Schlägt der Call mit
+      // 401/403 fehl (gesperrt, gekickt, Session ungültig), wird das SOFORT im
+      // laufenden Frontend behandelt — kein Browser-Reload nötig, nur der
+      // betroffene Spieler-Screen wechselt in der SPA selbst.
+      const { user: fresh } = await apiGet("/auth/me");
+      const u = state.users[state.currentUser];
+      if (!u) return;
+      u.progress = Object.assign(newProgress(), fresh.progress);
+      state.lastSyncedEconomy = { coins: u.progress.coins, gems: u.progress.gems };
+      state.underReviewBy = fresh.underReviewBy || null;
+      render();
+    } catch(err){
+      if (err.status===401 || err.status===403) handleSessionEnded(err);
+    }
+  }, 10000);
+}
+// Wird aufgerufen, sobald der Server meldet: gesperrt / gekickt / Session ungültig.
+// Wechselt NUR den internen SPA-Zustand zurück zum Login — kein window.location.reload().
+function handleSessionEnded(err){
+  if (!state.currentUser) return; // schon abgemeldet, nichts zu tun
+  if (_reconcileTimer){ clearInterval(_reconcileTimer); _reconcileTimer=null; }
+  exitArcadeTimers();
+  const wasBanned = err.status===403;
+  const bannedName = state.currentUser;
+  state.currentUser = null;
+  state.page = "dashboard";
+  state.authMode = "login";
+  state.authError = err.message || "Deine Sitzung wurde beendet.";
+  state.wasBannedUsername = wasBanned ? bannedName : null;
+  state.underReviewBy = null;
+  syncAuthUrl("login");
+  render();
 }
 
 /* ---------- BOOTSTRAP: laufende Session wiederherstellen (Login übersteht Reload) ---------- */
@@ -226,53 +303,64 @@ async function buyShopAvatar(avatar){
 function toggleSound(){ state.soundOn = !state.soundOn; if(state.soundOn) playSound("notify"); render(); }
 
 /* ---------- CASINO (serverseitig berechnet, nur virtuelle Coins) ---------- */
+/* ---------- SERVER-AUTORITATIVE COIN-UPDATES (Casino, Idle-Games) ----------
+   Diese Endpunkte berechnen die neuen Coins direkt im Backend. Der Sync-Anker
+   MUSS hier mit aktualisiert werden, sonst würde der nächste normale
+   Debounce-Sync die Differenz fälschlich nochmal als "Zugewinn" draufaddieren
+   (Doppelzählung). */
+function setServerCoins(newCoins){
+  const u = state.users[state.currentUser];
+  u.progress.coins = newCoins;
+  if (state.lastSyncedEconomy) state.lastSyncedEconomy.coins = newCoins;
+}
+
 async function playCasinoCoinflip(bet, choice){
   if (state.casinoBusy) return;
-  state.casinoBusy = true; state.casinoResult = null; render();
+  state.casinoBusy = true; state.casinoResult = null; refreshLiveArea();
   try{
     const res = await apiPost("/casino/coinflip", { bet, choice });
-    state.users[state.currentUser].progress.coins = res.coins;
+    setServerCoins(res.coins);
     state.casinoResult = { game:"coinflip", ...res };
     playSound(res.win ? "win" : "lose");
   } catch(err){ await customAlert(err.message); }
-  finally{ state.casinoBusy = false; render(); }
+  finally{ state.casinoBusy = false; refreshLiveArea(); }
 }
 async function pullSlotLever(){
   if (state.casinoBusy) return;
   const betInput = document.getElementById("slBet");
   const bet = betInput ? betInput.value : 20;
-  state.casinoBusy = true; state.casinoResult = null; render();
+  state.casinoBusy = true; state.casinoResult = null; refreshLiveArea();
 
   // Während der Anfrage rasch durch zufällige Symbole "spinnen" lassen —
   // rein optisch, das tatsächliche Ergebnis kommt weiterhin vom Server.
   const SYMS = ["cherry","lemon","bell","star","diamond"];
   const randomFrame = ()=> [0,0,0].map(()=>SYMS[Math.floor(Math.random()*SYMS.length)]);
-  state.casinoSpinFrame = randomFrame(); render();
-  const spinTimer = setInterval(()=>{ state.casinoSpinFrame = randomFrame(); render(); }, 90);
+  state.casinoSpinFrame = randomFrame(); refreshLiveArea();
+  const spinTimer = setInterval(()=>{ state.casinoSpinFrame = randomFrame(); refreshLiveArea(); }, 90);
 
   try{
     const [res] = await Promise.all([
       apiPost("/casino/slots", { bet }),
       new Promise(r=>setTimeout(r, 650)), // Mindest-Spin-Dauer, damit die Animation nicht "blinzelt"
     ]);
-    state.users[state.currentUser].progress.coins = res.coins;
+    setServerCoins(res.coins);
     state.casinoResult = { game:"slots", ...res };
     playSound(res.payout>0 ? "win" : "lose");
   } catch(err){ await customAlert(err.message); }
-  finally{ clearInterval(spinTimer); state.casinoBusy = false; render(); }
+  finally{ clearInterval(spinTimer); state.casinoBusy = false; refreshLiveArea(); }
 }
 async function playHigherLower(guess){
   if (state.casinoBusy) return;
   const betInput = document.getElementById("hlBet");
   const bet = betInput ? betInput.value : 20;
-  state.casinoBusy = true; state.casinoResult = null; render();
+  state.casinoBusy = true; state.casinoResult = null; refreshLiveArea();
   try{
     const res = await apiPost("/casino/higherlower", { bet, guess });
-    state.users[state.currentUser].progress.coins = res.coins;
+    setServerCoins(res.coins);
     state.casinoResult = { game:"higherlower", guess, ...res };
     playSound(res.win ? "win" : "lose");
   } catch(err){ await customAlert(err.message); }
-  finally{ state.casinoBusy = false; render(); }
+  finally{ state.casinoBusy = false; refreshLiveArea(); }
 }
 
 /* ---------- FREUNDE ---------- */
@@ -305,14 +393,14 @@ async function removeFriendUser(id){
 async function loadCookieState(){
   try{ state.cookieState = await apiGet("/idle/cookie"); }
   catch(err){ state.cookieState = null; }
-  render();
+  refreshLiveArea();
 }
 function clickCookie(){
   state.cookieClicks++;
   state.cookieBounce = (state.cookieBounce||0) + 1; // wechselt jedes Mal -> CSS-Animation startet neu
   playSound("click");
   scheduleCookieSync();
-  render(); // schnelles visuelles Feedback, Server-Sync passiert gebündelt (siehe unten)
+  refreshLiveArea(); // patcht nur den Keks-Bereich, kein Flackern der ganzen Seite mehr
 }
 let _cookieSyncTimer = null;
 function scheduleCookieSync(){
@@ -324,7 +412,7 @@ async function syncCookieClicks(){
   const clicks = state.cookieClicks; state.cookieClicks = 0;
   try{
     const res = await apiPost("/idle/cookie/collect", { clicks });
-    state.users[state.currentUser].progress.coins = res.coins;
+    setServerCoins(res.coins);
     await loadCookieState();
   } catch(err){ /* still egal, nächster Sync holt es nach */ }
 }
@@ -341,12 +429,12 @@ async function buyCookieUpgrade(upgradeId){
 async function loadFactoryState(){
   try{ state.factoryState = await apiGet("/idle/factory"); }
   catch(err){ state.factoryState = null; }
-  render();
+  refreshLiveArea();
 }
 async function collectFactory(){
   try{
     const res = await apiPost("/idle/factory/collect");
-    state.users[state.currentUser].progress.coins = res.coins;
+    setServerCoins(res.coins);
     if (res.earned>0) playSound("coin");
     await loadFactoryState();
   } catch(err){ customAlert(err.message); }
@@ -602,15 +690,18 @@ async function runActiveProject(){
   if (!state.activeProject || state.codeRunning) return;
   await saveActiveProject();
   const lang = state.activeProject.language;
-  if (lang!=="javascript" && lang!=="python"){
+  const RUNNABLE = ["javascript","python","lua"];
+  if (!RUNNABLE.includes(lang)){
     state.codeOutput = { stderr:
       "Diese Sprache kann gerade nicht ausgeführt werden: Der bisherige kostenlose Ausführungs-Dienst (Piston) ist seit Februar 2026 nicht mehr frei zugänglich. " +
-      "JavaScript und Python laufen direkt in deinem Browser und funktionieren weiterhin uneingeschränkt." };
+      "JavaScript, Python und Lua laufen direkt in deinem Browser und funktionieren weiterhin uneingeschränkt." };
     render(); return;
   }
   state.codeRunning = true; state.codeOutput = null; render();
   try{
-    const result = lang==="javascript" ? await runJsSandboxed(state.activeProject.code) : await runPython(state.activeProject.code);
+    const result = lang==="javascript" ? await runJsSandboxed(state.activeProject.code)
+      : lang==="python" ? await runPython(state.activeProject.code)
+      : await runLua(state.activeProject.code);
     state.codeOutput = result;
     playSound(result.stderr ? "wrong" : "correct");
   } catch(err){ state.codeOutput = { stderr: err.message }; }
@@ -676,6 +767,19 @@ function finishExam(){
 }
 function exitExam(){ state.examSession = null; render(); }
 
+async function changeUsername(newName){
+  if (!newName || !newName.trim()) return;
+  try{
+    const { user } = await apiPatch("/auth/username", { newUsername: newName.trim() });
+    const oldName = state.currentUser;
+    state.users[user.username] = state.users[oldName];
+    delete state.users[oldName];
+    state.currentUser = user.username;
+    hydrateUser(user); // aktualisiert außerdem den Sync-Anker & Review-Status korrekt
+    await customAlert(`Dein Nutzername ist jetzt "${user.username}".`, "Geändert ✓");
+  } catch(err){ await customAlert(err.message); }
+}
+
 /* ---------- ADMIN-PANEL ---------- */
 async function loadAdminUsers(){
   if (!isAdminUser() && !hasPermission("users.view")) return;
@@ -701,8 +805,13 @@ async function adminSetRole(id, role){
 function openAdminEdit(id){
   state.adminEditingUser = state.adminUsers.find(u=>u._id===id);
   render();
+  apiPost(`/admin/users/${id}/review-start`).catch(()=>{});
 }
-function closeAdminEdit(){ state.adminEditingUser = null; render(); }
+function closeAdminEdit(){
+  const wasId = state.adminEditingUser && state.adminEditingUser._id;
+  state.adminEditingUser = null; render();
+  if (wasId) apiPost(`/admin/users/${wasId}/review-end`).catch(()=>{});
+}
 async function loadUnbanRequests(){
   try{ const {requests} = await apiGet("/admin/unban-requests"); state.adminUnbanRequests = requests; }
   catch(err){ state.adminUnbanRequests = []; }

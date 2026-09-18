@@ -75,3 +75,51 @@ async function runPython(code){
   const stderrCaptured = pyodide.runPython("sys.stderr.getvalue()");
   return { stdout, stderr: [stderrCaptured, runtimeError].filter(Boolean).join("\n") };
 }
+
+/* ---------- LUA (via Fengari — reine JS-Lua-VM, ebenfalls komplett im Browser) ----------
+   HINWEIS: Konnte in dieser Sandbox nicht live gegen echten Netzwerkzugriff
+   getestet werden. Die verwendete API folgt exakt der offiziellen Fengari-
+   Dokumentation (github.com/fengari-lua/fengari) — bei Problemen bitte die
+   genaue Fehlermeldung melden. */
+let _fengariPromise = null;
+function loadFengariOnce(){
+  if (_fengariPromise) return _fengariPromise;
+  _fengariPromise = new Promise((resolve, reject)=>{
+    if (window.fengari) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js";
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Lua-Umgebung (Fengari) konnte nicht geladen werden. Internetverbindung prüfen."));
+    document.head.appendChild(s);
+  });
+  return _fengariPromise;
+}
+async function runLua(code){
+  try{ await loadFengariOnce(); }
+  catch(err){ return { stdout:"", stderr: err.message }; }
+  try{
+    const { lua, lauxlib, lualib, to_luastring } = fengari;
+    const L = lauxlib.luaL_newstate();
+    lualib.luaL_openlibs(L);
+    let output = "";
+    // Globales print() umbiegen, damit wir die Ausgabe einsammeln können,
+    // statt sie (wie fengari-web es standardmäßig tut) direkt auf die Seite zu schreiben.
+    lua.lua_pushjsfunction(L, (Ls)=>{
+      const n = lua.lua_gettop(Ls);
+      const parts = [];
+      for (let i=1; i<=n; i++) parts.push(lua.lua_tojsstring(Ls, i));
+      output += parts.join("\t") + "\n";
+      return 0;
+    });
+    lua.lua_setglobal(L, "print");
+
+    const status = lauxlib.luaL_dostring(L, to_luastring(code));
+    if (status !== lua.LUA_OK){
+      const errMsg = lua.lua_tojsstring(L, -1);
+      return { stdout: output, stderr: String(errMsg) };
+    }
+    return { stdout: output, stderr: "" };
+  } catch(e){
+    return { stdout:"", stderr: "Lua-Fehler: " + (e.message||String(e)) };
+  }
+}

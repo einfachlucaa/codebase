@@ -31,7 +31,7 @@ function tapAnswer(dir){
   if (!t||t.over) return;
   if (dir===t.dir){
     t.combo++; const gained = 10+t.combo*2; t.score+=gained; t.feedback=`Richtig! +${gained}`;
-    nextTapRound(); render();
+    nextTapRound(); refreshLiveArea();
   } else {
     tapLoseLife("Falsche Richtung!");
   }
@@ -40,7 +40,7 @@ function tapLoseLife(reason){
   const t = state.tap;
   t.combo=0; t.lives--; t.feedback=reason;
   if (t.lives<=0) endTap(); else nextTapRound();
-  render();
+  refreshLiveArea();
 }
 function endTap(){
   const t = state.tap, p = progress();
@@ -96,6 +96,7 @@ function renderTapGame(){
   return html+`</div></div>`;
 }
 function renderTapOnly(){
-  // Leichter Refresh nur für den Timer-Tick, ohne komplettes Re-Render der ganzen Seite (Performance).
-  if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="tap") render();
+  // Leichter Refresh nur für den Timer-Tick — patcht nur den Spiel-Bereich,
+  // nicht die ganze Seite (kein Flackern mehr).
+  if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="tap") refreshLiveArea();
 }

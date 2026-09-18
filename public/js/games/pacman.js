@@ -112,7 +112,7 @@ function pacmanTick(){
   });
 
   if (g.dotsLeft<=0) pacmanEndGame(true);
-  render();
+  refreshLiveArea();
 }
 function pacmanLoseLife(){
   const g = state.pacman;
@@ -130,6 +130,6 @@ function pacmanEndGame(won){
   const coinsEarned = payoutForGame(g.score);
   g.coinsEarned = coinsEarned;
   playSound(won ? "win" : "lose");
-  render();
+  refreshLiveArea();
 }
 function exitPacman(){ stopPacmanTimer(); state.pacman=null; state.arcadeGame=null; render(); }
