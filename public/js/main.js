@@ -4,6 +4,7 @@ function goto(page){
   stopAdminLivePoll();
   if (state.adminEditingUser && page!=="admin") closeAdminEdit(); // Review-Status sauber beenden, wenn man das Panel verlässt
   state.page = page;
+  state._navFlash = true; // nur hier: echte Navigation -> Fade-In darf einmal spielen
   if (page==="learning"){ state.lessonId=null; }
   if (page==="exercises"){ loadPractice(); }
   if (page!=="games" && !["arcade","cookie","factory","casino"].includes(page)){ exitArcadeTimers(); state.arcadeGame=null; }
@@ -19,6 +20,7 @@ function goto(page){
 }
 function switchGamesTab(tab){
   state.gamesTab = tab; state.page="games"; state.arcadeGame=null; exitArcadeTimers();
+  state._navFlash = true;
   render();
   if (tab==="cookie") loadCookieState();
   if (tab==="factory") loadFactoryState();
@@ -40,9 +42,16 @@ function loadPractice(){
   shuffle(ids);
   state.practiceInstances = ids.slice(0,8).map(makeInstance);
 }
+function openLegal(mode){
+  state.legalMode = mode;
+  state.page = "legal";
+  state._navFlash = true;
+  render();
+}
 function switchCourse(courseId){
   if (state.course===courseId) return;
   state.course = courseId; state.lessonId = null;
+  state._navFlash = true;
   if (state.page==="exercises") loadPractice();
   render();
 }
@@ -231,10 +240,16 @@ function startProgressReconcile(){
       const { user: fresh } = await apiGet("/auth/me");
       const u = state.users[state.currentUser];
       if (!u) return;
+      // WICHTIG: nur neu zeichnen, wenn sich wirklich etwas geändert hat —
+      // sonst "blitzt" die komplette Seite alle 10 Sekunden ohne jeden Grund
+      // (das war die Hauptursache für das gemeldete Dauer-Flackern).
+      const before = JSON.stringify({p:u.progress, r:state.underReviewBy, ban:u.banned, warn:(u.warnings||[]).length});
       u.progress = Object.assign(newProgress(), fresh.progress);
       state.lastSyncedEconomy = { coins: u.progress.coins, gems: u.progress.gems };
       state.underReviewBy = fresh.underReviewBy || null;
-      render();
+      u.warnings = fresh.warnings || [];
+      const after = JSON.stringify({p:u.progress, r:state.underReviewBy, ban:fresh.banned, warn:u.warnings.length});
+      if (before !== after) render();
     } catch(err){
       if (err.status===401 || err.status===403) handleSessionEnded(err);
     }
@@ -431,6 +446,19 @@ async function loadFactoryState(){
   try{ state.factoryState = await apiGet("/idle/factory"); }
   catch(err){ state.factoryState = null; }
   refreshLiveArea();
+  manageFactoryAutoCollect();
+}
+let _factoryAutoTimer = null;
+function manageFactoryAutoCollect(){
+  const shouldRun = state.page==="games" && state.gamesTab==="factory" && state.factoryState && state.factoryState.autoCollect;
+  if (shouldRun && !_factoryAutoTimer){
+    _factoryAutoTimer = setInterval(()=>{
+      if (state.page==="games" && state.gamesTab==="factory") collectFactory();
+      else { clearInterval(_factoryAutoTimer); _factoryAutoTimer=null; }
+    }, 15000);
+  } else if (!shouldRun && _factoryAutoTimer){
+    clearInterval(_factoryAutoTimer); _factoryAutoTimer=null;
+  }
 }
 async function collectFactory(){
   try{
@@ -446,6 +474,22 @@ async function buyFactoryGenerator(generatorId){
     playSound("coin");
     await loadFactoryState();
   } catch(err){ customAlert(err.message); }
+}
+async function buyFactoryManager(){
+  if (!(await customConfirm("Werksleiter für 15 Gems anheuern? Er holt die Produktion danach automatisch ab."))) return;
+  try{
+    await apiPost("/idle/factory/manager");
+    playSound("win");
+    await loadFactoryState();
+  } catch(err){ await customAlert(err.message); }
+}
+async function prestigeFactory(){
+  if (!(await customConfirm("Wirklich prestigen? Alle Generatoren werden zurückgesetzt, dafür bekommst du dauerhaft +15% Produktion für immer."))) return;
+  try{
+    await apiPost("/idle/factory/prestige");
+    playSound("levelup");
+    await loadFactoryState();
+  } catch(err){ await customAlert(err.message); }
 }
 
 /* ---------- ABO-SYSTEM ---------- */
@@ -784,11 +828,12 @@ async function changeUsername(newName){
 /* ---------- ADMIN-PANEL ---------- */
 async function loadAdminUsers(){
   if (!isAdminUser() && !hasPermission("users.view")) return;
+  const before = JSON.stringify(state.adminUsers);
   try{
     const { users, permissionList, roles } = await apiGet(`/admin/users?q=${encodeURIComponent(state.adminQuery||"")}`);
     state.adminUsers = users; state.adminPermissionList = permissionList; state.adminRoles = roles;
   } catch(err){ state.adminUsers = []; }
-  render();
+  if (JSON.stringify(state.adminUsers) !== before) render(); // nur bei echter Änderung neu zeichnen
 }
 function adminSearch(q){ state.adminQuery = q; loadAdminUsers(); }
 async function adminEditStats(id, coins, xp, level, gems){
@@ -814,9 +859,10 @@ function closeAdminEdit(){
   if (wasId) apiPost(`/admin/users/${wasId}/review-end`).catch(()=>{});
 }
 async function loadUnbanRequests(){
+  const before = JSON.stringify(state.adminUnbanRequests);
   try{ const {requests} = await apiGet("/admin/unban-requests"); state.adminUnbanRequests = requests; }
   catch(err){ state.adminUnbanRequests = []; }
-  render();
+  if (JSON.stringify(state.adminUnbanRequests) !== before) render();
 }
 async function reviewUnbanRequest(id, approve){
   try{ await apiPost(`/admin/unban-requests/${id}/review`, { approve }); await loadUnbanRequests(); await loadAdminUsers(); }
@@ -868,9 +914,10 @@ async function adminClearFlag(id){
   catch(err){ customAlert(err.message); }
 }
 async function loadAdminActivity(){
+  const before = JSON.stringify(state.adminActivity);
   try{ const {logs} = await apiGet(`/admin/activity${state.adminActivityFilter?`?username=${encodeURIComponent(state.adminActivityFilter)}`:""}`); state.adminActivity = logs; }
   catch(err){ state.adminActivity = []; }
-  render();
+  if (JSON.stringify(state.adminActivity) !== before) render();
 }
 function viewUserLogs(username){
   state.adminActivityFilter = username;

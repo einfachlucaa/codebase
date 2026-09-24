@@ -9,8 +9,8 @@ function renderAuth(){
   const err = state.authError ? `<div class="error-text">${escapeHtml(state.authError)}</div>` : `<div class="error-text"></div>`;
   const busy = state.authBusy;
   const mode = state.authMode;
-  const footer = `<div class="auth-footer">© ${new Date().getFullYear()} CodeBase · <button class="btn-ghost" onclick="setAuthMode('impressum')">Impressum</button> · <button class="btn-ghost" onclick="setAuthMode('datenschutz')">Datenschutz</button></div>`;
-  if (mode==="impressum" || mode==="datenschutz") return renderLegalPage(mode) + footer;
+  const footer = `<div class="auth-footer">© ${new Date().getFullYear()} CodeBase · <button class="btn-ghost" onclick="setAuthMode('impressum')">Impressum</button> · <button class="btn-ghost" onclick="setAuthMode('agb')">AGB</button> · <button class="btn-ghost" onclick="setAuthMode('datenschutz')">Datenschutz</button></div>`;
+  if (mode==="impressum" || mode==="agb" || mode==="datenschutz") return renderLegalPage(mode) + footer;
   const tabs = `<div class="auth-tabs">
     <button class="auth-tab ${mode==='login'?'active':''}" onclick="setAuthMode('login')">${icon('key',16)} Login</button>
     <button class="auth-tab ${mode==='register'?'active':''}" onclick="setAuthMode('register')">${icon('userPlus',16)} Registrieren</button>
@@ -61,25 +61,44 @@ function renderAuth(){
   </div>${footer}</div></div>`;
 }
 function legalContent(mode){
-  const isImpressum = mode==="impressum";
-  return isImpressum ? `
+  if (mode==="impressum") return `
       <div class="warn-banner">⚠️ Platzhalter — der Betreiber dieser Website muss hier die echten Pflichtangaben nach § 5 DDG (ehem. TMG) einsetzen, bevor die Seite öffentlich genutzt wird.</div>
       <div class="body-text" style="margin-top:14px;"><b>Angaben gemäß § 5 DDG</b><br/>
       [Vor- und Nachname / Firmenname]<br/>[Straße und Hausnummer]<br/>[PLZ und Ort]</div>
       <div class="body-text" style="margin-top:14px;"><b>Kontakt</b><br/>E-Mail: [deine E-Mail-Adresse]</div>
       <div class="body-text" style="margin-top:14px;"><b>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</b><br/>[Name, Anschrift wie oben]</div>
-    ` : `
+      <div class="body-text" style="margin-top:14px;"><b>Streitschlichtung</b><br/>Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit: <a href="https://ec.europa.eu/consumers/odr/" target="_blank" style="color:var(--accent);">ec.europa.eu/consumers/odr</a>. Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle [nicht/wohl] verpflichtet — bitte anpassen.</div>`;
+  if (mode==="agb") return `
+      <div class="warn-banner">⚠️ Vorlage, keine Rechtsberatung — vor echtem Betrieb von einem Anwalt prüfen lassen, insbesondere Namen/Kontakt unten ausfüllen.</div>
+      <div class="body-text" style="margin-top:14px;"><b>1. Geltungsbereich</b><br/>Diese Nutzungsbedingungen gelten für die Nutzung von CodeBase ("die Plattform"), einer kostenlosen Lern- und Spieleplattform. Mit der Registrierung erkennst du diese Bedingungen an.</div>
+      <div class="body-text" style="margin-top:14px;"><b>2. Registrierung & Konto</b><br/>Für die Nutzung ist ein Konto (Nutzername + Passwort) erforderlich. Du bist für die Geheimhaltung deiner Zugangsdaten selbst verantwortlich. Ein Konto ist nicht übertragbar.</div>
+      <div class="body-text" style="margin-top:14px;"><b>3. Virtuelle Währungen</b><br/>Coins und Gems sind rein virtuelle Punkte ohne Echtgeldwert. Sie können nicht gekauft, verkauft, ausgezahlt oder in echtes Geld umgetauscht werden. Es besteht kein Anspruch auf einen bestimmten Punktestand.</div>
+      <div class="body-text" style="margin-top:14px;"><b>4. Verhaltensregeln</b><br/>Untersagt sind insbesondere: Cheating/Manipulation der Spielmechaniken, Belästigung anderer Nutzer, das Versenden von Links/Spam im Chat, sowie jeder Versuch, die Sicherheitsmaßnahmen der Plattform zu umgehen. Verstöße können zu Verwarnungen und — bei wiederholten oder schweren Verstößen — zur Sperrung führen (siehe Admin-Moderationssystem).</div>
+      <div class="body-text" style="margin-top:14px;"><b>5. Haftungsausschluss</b><br/>Die Plattform wird "wie besehen" ohne Gewährleistung auf ununterbrochene Verfügbarkeit bereitgestellt. Für Datenverlust (z.B. durch Datenbank-Ausfälle) wird keine Haftung übernommen, soweit gesetzlich zulässig.</div>
+      <div class="body-text" style="margin-top:14px;"><b>6. Änderungen</b><br/>Diese Bedingungen können jederzeit angepasst werden; wesentliche Änderungen werden angemessen kommuniziert.</div>
+      <div class="body-text" style="margin-top:14px;"><b>7. Kontakt</b><br/>Bei Fragen: [deine E-Mail-Adresse]</div>`;
+  // Datenschutz (Standard-Fall)
+  return `
       <div class="warn-banner">⚠️ Diese Vorlage ersetzt keine Rechtsberatung — für eine rechtssichere Datenschutzerklärung einen Generator oder Anwalt nutzen.</div>
       <div class="body-text" style="margin-top:14px;"><b>Welche Daten werden gespeichert?</b><br/>Nutzername, gehashtes Passwort (nie im Klartext), dein Lernfortschritt (Level/XP/Coins), freiwillig hochgeladene Profilbilder/Banner, sowie zu Sicherheitszwecken deine IP-Adresse bei Registrierung/Login (Schutz vor Konten-Missbrauch nach Sperren).</div>
       <div class="body-text" style="margin-top:14px;"><b>Warum?</b><br/>Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung — Bereitstellung des Kontos) sowie lit. f (berechtigtes Interesse an Missbrauchsschutz).</div>
-      <div class="body-text" style="margin-top:14px;"><b>Deine Rechte</b><br/>Du kannst jederzeit Auskunft über deine gespeicherten Daten, deren Löschung oder Berichtigung verlangen. Kontakt: [deine E-Mail-Adresse]</div>
-    `;
+      <div class="body-text" style="margin-top:14px;"><b>Deine Rechte</b><br/>Du kannst jederzeit Auskunft über deine gespeicherten Daten, deren Löschung oder Berichtigung verlangen. Kontakt: [deine E-Mail-Adresse]</div>`;
+}
+function legalTitle(mode){
+  return mode==="impressum" ? "Impressum" : mode==="agb" ? "AGB / Nutzungsbedingungen" : "Datenschutzerklärung";
+}
+function renderLegal(){
+  const modes = ["impressum","agb","datenschutz"];
+  return `<div class="title">${icon("bookmark",26)} ${legalTitle(state.legalMode)}</div>
+  <div class="segmented" style="margin-bottom:18px;">
+    ${modes.map(m=>`<button class="${state.legalMode===m?'active':''}" onclick="state.legalMode='${m}'; render();">${legalTitle(m)}</button>`).join("")}
+  </div>
+  <div class="card" style="max-width:700px;">${legalContent(state.legalMode)}</div>`;
 }
 function renderLegalPage(mode){
-  const isImpressum = mode==="impressum";
   return `<div class="auth-wrap"><div><div class="card auth-card" style="width:620px; text-align:left; max-height:80vh; overflow-y:auto;">
     <button class="btn-ghost" onclick="setAuthMode('login')">← Zurück zum Login</button>
-    <div class="title" style="margin-top:12px;">${isImpressum?"Impressum":"Datenschutzerklärung"}</div>
+    <div class="title" style="margin-top:12px;">${legalTitle(mode)}</div>
     ${legalContent(mode)}
   </div></div></div>`;
 }
@@ -119,7 +138,7 @@ function renderShell(inner){
         </button>
       </div>
     </div>
-    <div class="content">
+    <div class="content${state._navFlash?' page-enter':''}">
       <div class="bg-deco" aria-hidden="true">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none">
           <circle cx="88" cy="8" r="16" fill="none" stroke="var(--accent)" stroke-width="0.4"/>
@@ -134,6 +153,12 @@ function renderShell(inner){
       ${state.underReviewBy ? `<div class="review-banner">${icon("shield",18)} <b>Dein Account wird gerade von einem Admin geprüft.</b> Das ist eine normale Moderations-Maßnahme — mach einfach weiter wie gewohnt.</div>` : ""}
       ${u.warnings && u.warnings.length>0 ? `<div class="warn-banner" style="margin-bottom:16px;">⚠️ Du hast ${u.warnings.length} Verwarnung(en) erhalten. Letzter Grund: "${escapeHtml(u.warnings[u.warnings.length-1].reason)}". Bei weiteren Verstößen wird dein Konto automatisch gesperrt.</div>` : ""}
       ${inner}
+      <div class="app-footer">
+        <span>© ${new Date().getFullYear()} CodeBase</span>
+        <button class="btn-ghost" onclick="openLegal('impressum')">Impressum</button>
+        <button class="btn-ghost" onclick="openLegal('agb')">AGB</button>
+        <button class="btn-ghost" onclick="openLegal('datenschutz')">Datenschutz</button>
+      </div>
     </div>
   </div>`;
 }
@@ -811,6 +836,23 @@ function renderChatPanel(){
 }
 
 /* ---------- RENDER: COOKIE CLICKER ---------- */
+function renderFallingCrumbs(seed){
+  // Bei jedem Klick fallen ein paar kleine Kekse vom Klickpunkt runter —
+  // rein optisch, Menge/Position zufällig aber deterministisch übers seed
+  // (damit derselbe Klick bei einem eventuellen Doppel-Render gleich aussieht).
+  let rng = (seed*2654435761) % 2147483647; if (rng<0) rng += 2147483647;
+  const next = ()=>{ rng = (rng*16807) % 2147483647; return rng/2147483647; };
+  const count = 4 + Math.floor(next()*3);
+  let html = "";
+  for (let i=0;i<count;i++){
+    const left = 20 + next()*60;
+    const delay = (next()*0.15).toFixed(2);
+    const drift = (next()*40-20).toFixed(0);
+    const size = 14 + Math.floor(next()*10);
+    html += `<div class="cookie-crumb" style="left:${left}%; font-size:${size}px; animation-delay:${delay}s; --drift:${drift}px;">🍪</div>`;
+  }
+  return html;
+}
 function renderCookieClicker(){
   const s = state.cookieState;
   const p = progress();
@@ -824,6 +866,7 @@ function renderCookieClicker(){
       <div class="cookie-stage">
         <button onclick="clickCookie()" class="cookie-btn ${(state.cookieBounce||0)%2===0?'cb-a':'cb-b'}">🍪</button>
         ${state.cookieBounce ? `<div class="cookie-float" key="${state.cookieBounce}">+${s.clickPower}</div>` : ""}
+        ${state.cookieBounce ? renderFallingCrumbs(state.cookieBounce) : ""}
       </div>
       <div class="muted" style="margin-top:10px;">Klick-Power: <b>${s.clickPower}</b> · Auto: <b>${s.autoPerSecond}/s</b> ${s.multiplier>1?`· <span style="color:var(--success);">x${s.multiplier.toFixed(2)} Abo-Boost</span>`:""}</div>
     </div>
@@ -846,14 +889,29 @@ function renderFactory(){
   const p = progress();
   let html = `<div class="section-title">Factory</div>
   <div class="body-text" style="margin-bottom:6px;">Reines Idle-Spiel: Generatoren kaufen, Produktion läuft auch offline weiter. Beim Abholen rechnet der Server die vergangene Zeit serverseitig nach.</div>
-  <div style="margin:6px 0 20px;">🪙 Coins: <b style="color:var(--coin);">${p.coins}</b></div>`;
+  <div style="margin:6px 0 20px; display:flex; gap:20px;">
+    <span>🪙 Coins: <b style="color:var(--coin);">${p.coins}</b></span>
+    <span>💎 Gems: <b style="color:var(--gem);">${p.gems}</b></span>
+  </div>`;
   if (!s) return html + `<div class="body-text">Lade...</div>`;
   html += `
   <div class="card gradient-bg" style="text-align:center; margin-bottom:20px;">
-    <div style="color:#ede9ff;">Wartend zum Abholen</div>
+    <div style="color:#ede9ff;">${s.autoCollect?"Werksleiter sammelt automatisch":"Wartend zum Abholen"}</div>
     <div style="font-size:32px; font-weight:700; color:white;">${s.pending} 🪙</div>
     <button class="btn" style="background:white; color:var(--ios-indigo); margin-top:10px;" onclick="collectFactory()">Abholen</button>
-    <div class="muted" style="color:#ede9ff; margin-top:8px;">${s.coinsPerSecond}/s Produktion ${s.multiplier>1?`· x${s.multiplier.toFixed(2)} Abo-Boost`:""}</div>
+    <div class="muted" style="color:#ede9ff; margin-top:8px;">${s.coinsPerSecond}/s Produktion ${s.multiplier>1?`· x${s.multiplier.toFixed(2)} Gesamt-Boost`:""} ${s.prestigeLevel>0?`· Prestige-Stufe ${s.prestigeLevel}`:""}</div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <div class="section-title">${icon("crown",18)} Prestige</div>
+      <div class="body-text" style="margin-bottom:12px;">Setzt alle Generatoren zurück, gibt dafür DAUERHAFT +15% Produktion pro Stufe. Aktuell: Stufe ${s.prestigeLevel} (${(s.prestigeLevel*15)}% Bonus).</div>
+      <button class="btn btn-primary" ${s.prestigeReady?"":"disabled"} onclick="prestigeFactory()">${s.prestigeReady?"Jetzt prestigen":`Ab ${s.prestigeMinCps} Coins/s`}</button>
+    </div>
+    <div class="card">
+      <div class="section-title">${icon("user",18)} Werksleiter</div>
+      <div class="body-text" style="margin-bottom:12px;">${s.autoCollect?"Du hast bereits einen Werksleiter — die Produktion wird automatisch abgeholt.":"Holt die Produktion automatisch ab, ohne dass du klicken musst."}</div>
+      ${s.autoCollect ? `<div style="color:var(--success);">${icon("check",16)} Aktiv</div>` : `<button class="btn btn-secondary" ${p.gems<s.managerCostGems?"disabled":""} onclick="buyFactoryManager()">Anheuern — ${s.managerCostGems} 💎</button>`}
+    </div>
   </div>
   <div class="card">
     <div class="section-title">Generatoren</div>
@@ -1284,6 +1342,7 @@ function renderSettings(){
     <div class="section-title">Rechtliches</div>
     <div style="display:flex; gap:10px; margin-bottom:${state.settingsLegal?'14px':'0'};">
       <button class="btn-ghost" onclick="state.settingsLegal = state.settingsLegal==='impressum'?null:'impressum'; render();">Impressum</button>
+      <button class="btn-ghost" onclick="state.settingsLegal = state.settingsLegal==='agb'?null:'agb'; render();">AGB</button>
       <button class="btn-ghost" onclick="state.settingsLegal = state.settingsLegal==='datenschutz'?null:'datenschutz'; render();">Datenschutz</button>
     </div>
     ${state.settingsLegal ? legalContent(state.settingsLegal) : ""}
@@ -1305,6 +1364,7 @@ function render(){
     case "games": case "arcade": case "cookie": case "factory": case "casino": inner = renderGames(); break;
     case "projects": inner = renderProjects(); break;
     case "handbuch": inner = renderHandbuch(); break;
+    case "legal": inner = renderLegal(); break;
     case "shop": inner = renderShop(); break;
     case "subscription": inner = renderSubscription(); break;
     case "friends": inner = renderFriends(); break;
@@ -1315,5 +1375,6 @@ function render(){
     default: inner = renderDashboard();
   }
   app.innerHTML = renderShell(inner) + renderModal() + renderTutorial();
+  state._navFlash = false; // Fade-In-Klasse nur EINMAL nach echter Navigation anwenden
   scheduleProgressSync(); // Fortschritt im Hintergrund mit dem Server abgleichen
 }

@@ -26,7 +26,9 @@ let state = {
   dashboardTop3: null,
   handbuchTab: "intro",
   settingsLegal: null,
+  legalMode: "impressum",
   examSession: null,
+  _navFlash: false,
   shop: null,          // {items, owned, coins}
   adminUsers: null,
   adminQuery: "",
