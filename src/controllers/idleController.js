@@ -1,7 +1,7 @@
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const { COOKIE_UPGRADES, costFor: cookieCost } = require("../config/cookieUpgrades");
-const { FACTORY_GENERATORS, costFor: factoryCost } = require("../config/factoryUpgrades");
+const { FACTORY_GENERATORS, costFor: factoryCost, FACTORY_MANAGER_COST_GEMS, PRESTIGE_MIN_CPS, PRESTIGE_BONUS_PER_LEVEL } = require("../config/factoryUpgrades");
 const { effectiveTier, TIERS } = require("../config/subscriptions");
 
 // WICHTIG (Sicherheit): Anders als die Arcade-Minispiele meldet der Client hier
@@ -16,6 +16,11 @@ const MAX_OFFLINE_SECONDS = 60 * 60 * 12; // Produktion läuft max. 12h "offline
 function productionMultiplier(user) {
   const tier = effectiveTier(user);
   return 1 + TIERS[tier].perks.productionBoost;
+}
+// Factory-Produktion bekommt zusätzlich den PERMANENTEN Prestige-Bonus obendrauf.
+function factoryMultiplier(user) {
+  const prestigeLevel = user.progress.factory.prestigeLevel || 0;
+  return productionMultiplier(user) * (1 + prestigeLevel * PRESTIGE_BONUS_PER_LEVEL);
 }
 
 /* ---------------- COOKIE CLICKER ---------------- */
@@ -81,13 +86,20 @@ const getFactoryState = asyncHandler(async (req, res) => {
   const f = req.user.progress.factory;
   const now = Date.now();
   const elapsedSec = Math.min(MAX_OFFLINE_SECONDS, Math.max(0, (now - new Date(f.lastCollectedAt).getTime()) / 1000));
-  const pending = Math.floor(elapsedSec * f.coinsPerSecond * productionMultiplier(req.user));
+  const mult = factoryMultiplier(req.user);
+  const pending = Math.floor(elapsedSec * f.coinsPerSecond * mult);
   res.json({
     coinsPerSecond: f.coinsPerSecond,
     upgrades: f.upgrades,
     pending,
     catalog: FACTORY_GENERATORS.map((g) => ({ ...g, cost: factoryCost(g, f.upgrades[g.id] || 0), owned: f.upgrades[g.id] || 0 })),
-    multiplier: productionMultiplier(req.user),
+    multiplier: mult,
+    prestigeLevel: f.prestigeLevel || 0,
+    prestigeReady: f.coinsPerSecond >= PRESTIGE_MIN_CPS,
+    prestigeMinCps: PRESTIGE_MIN_CPS,
+    autoCollect: !!f.autoCollect,
+    managerCostGems: FACTORY_MANAGER_COST_GEMS,
+    gems: req.user.progress.gems,
   });
 });
 
@@ -96,7 +108,7 @@ const collectFactory = asyncHandler(async (req, res) => {
   const f = user.progress.factory;
   const now = Date.now();
   const elapsedSec = Math.min(MAX_OFFLINE_SECONDS, Math.max(0, (now - new Date(f.lastCollectedAt).getTime()) / 1000));
-  const earned = Math.floor(elapsedSec * f.coinsPerSecond * productionMultiplier(user));
+  const earned = Math.floor(elapsedSec * f.coinsPerSecond * factoryMultiplier(user));
 
   user.progress.coins += earned;
   user.progress.totalCoinsEarned += earned;
@@ -126,7 +138,39 @@ const buyFactoryGenerator = asyncHandler(async (req, res) => {
   res.json({ coins: user.progress.coins, coinsPerSecond: f.coinsPerSecond });
 });
 
+// "Werksleiter" anheuern: einmaliger Gem-Kauf, danach läuft das Abholen der
+// Factory automatisch mit (bei jedem Laden der Seite serverseitig nachgerechnet).
+const buyFactoryManager = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const f = user.progress.factory;
+  if (f.autoCollect) throw new ApiError(409, "Du hast bereits einen Werksleiter.");
+  if (user.progress.gems < FACTORY_MANAGER_COST_GEMS) throw new ApiError(402, "Nicht genug Gems.");
+  user.progress.gems -= FACTORY_MANAGER_COST_GEMS;
+  f.autoCollect = true;
+  user.markModified("progress");
+  await user.save();
+  res.json({ gems: user.progress.gems, autoCollect: true });
+});
+
+// Prestige: Generatoren & Produktion zurücksetzen, dafür dauerhaft +15%
+// Produktion pro Stufe. Braucht eine Mindest-Produktion, damit ein Reset
+// direkt zu Spielbeginn nichts bringt.
+const prestigeFactory = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const f = user.progress.factory;
+  if (f.coinsPerSecond < PRESTIGE_MIN_CPS) {
+    throw new ApiError(400, `Du brauchst mindestens ${PRESTIGE_MIN_CPS} Coins/Sekunde, um zu prestigen.`);
+  }
+  f.prestigeLevel = (f.prestigeLevel || 0) + 1;
+  f.coinsPerSecond = 0;
+  f.upgrades = {};
+  f.lastCollectedAt = new Date();
+  user.markModified("progress");
+  await user.save();
+  res.json({ prestigeLevel: f.prestigeLevel });
+});
+
 module.exports = {
   getCookieState, collectCookie, buyCookieUpgrade,
-  getFactoryState, collectFactory, buyFactoryGenerator,
+  getFactoryState, collectFactory, buyFactoryGenerator, buyFactoryManager, prestigeFactory,
 };

@@ -55,6 +55,8 @@ const ProgressSchema = new mongoose.Schema(
       coinsPerSecond: { type: Number, default: 0 },
       upgrades: { type: mongoose.Schema.Types.Mixed, default: {} },
       lastCollectedAt: { type: Date, default: Date.now },
+      prestigeLevel: { type: Number, default: 0 }, // permanenter Produktions-Bonus nach Reset
+      autoCollect: { type: Boolean, default: false }, // "Manager": Abholen läuft automatisch mit
     },
   },
   { _id: false }
