@@ -1,0 +1,208 @@
+/* ---------- STATE ---------- */
+let state = {
+  modal: null,         // {kind:'alert'|'confirm'|'prompt', title, message, value, resolve}
+  users: {},          // username -> {id, avatar, createdAt, role, permissions, ownedAvatars, progress:{...}}
+  currentUser: null,
+  page: "dashboard",
+  course: "csharp",   // aktuell gewählter Lern-Kurs (siehe COURSES in data.js)
+  lessonId: null,
+  lessonInstances: [],
+  practiceInstances: [],
+  arcadeGame: null,   // null | 'bubble' | 'tap' | 'memory' | 'quizrush'
+  gamesTab: "arcade", // aktiver Tab im Spiele-Hub: arcade | cookie | factory | casino
+  bubble: null,
+  tap: null,
+  memory: null,
+  quizrush: null,
+  authError: "",
+  authMode: "login",
+  authBusy: false,
+  wasBannedUsername: null, // gefüllt, wenn Login wegen Sperre fehlschlug -> zeigt Entsperrungs-Formular
+  booting: true,      // true bis /api/auth/me einmal geprüft wurde
+  tutorialStep: 0,
+  showTutorial: false,
+  leaderboardRows: null,
+  leaderboardSort: "xp",
+  dashboardTop3: null,
+  handbuchTab: "intro",
+  settingsLegal: null,
+  legalMode: "impressum",
+  myGroups: null, activeGroup: null, activeGroupMembers: [], activeChannelId: null, groupMessages: [],
+  theme: localStorage.getItem("cb_theme") || "orange",
+  cryptoState: null,
+  examSession: null,
+  _navFlash: false,
+  shop: null,          // {items, owned, coins}
+  adminUsers: null,
+  adminQuery: "",
+  adminActivity: null,
+  adminActivityFilter: null, // Username-Filter für den Aktivitäts-Tab
+  projects: null,
+  activeProject: null,
+  codeOutput: null,
+  codeRunning: false,
+  adminTab: "users",   // "users" | "activity" | "unban"
+  adminEditingUser: null, // aktuell im Vollbild-Editor geöffneter Nutzer
+  adminUnbanRequests: null,
+  soundOn: true,
+  userMenuOpen: false,
+  lastSyncedEconomy: null,
+  underReviewBy: null,
+  casinoBusy: false,
+  casinoResult: null,  // letztes Casino-Ergebnis (für Animation/Anzeige)
+  casinoSpinFrame: null, // aktuell angezeigte Zufallssymbole während des Slot-Spins
+  friendsData: null,   // {friends, incoming, outgoing}
+  friendSearchResults: null,
+  cookieState: null,
+  cookieClicks: 0,       // seit letztem Server-Sync gesammelte Klicks (lokal, wird periodisch synced)
+  cookieBounce: 0,       // wechselt bei jedem Klick, triggert die Cookie-Animation neu
+  factoryState: null,
+  subscriptionState: null,
+  activeChatWith: null,  // {id, username, avatar}
+  chatMessages: [],
+  stickers: [],
+  unreadCounts: {},      // friendId -> Anzahl ungelesener Nachrichten
+};
+
+function newProgress(){
+  return {
+    level:1, xp:0, coins:5, gems:0, totalCoinsEarned:5,
+    streak:0, lastLearnDate:null,
+    completedLessons:[], completedExercises:[], unlocked:[],
+    totalSolved:0, currentStreak:0, bestStreak:0,
+    bubbleHigh:0, tapHigh:0, memoryHigh:0, quizRushHigh:0, pacmanHigh:0, snakeHigh:0,
+    memoryPerfect:0, quizRushBestStreak:0,
+    arcadePlays:0, gamesPlayed:{},
+    exerciseCooldowns:{}, lessonCooldowns:{}, // exId/lessonId -> Zeitpunkt letzter Belohnung (24h-Sperre für Wiederholungen)
+    examCooldowns:{}, examsPassed:0, examsPerfect:0,
+    daily:{date:todayStr(), exToday:0, lessonsToday:0, xpToday:0, claimed:false},
+  };
+}
+// Wirtschaft deutlich abgeschwächt: statt der in den Lektionen/Aufgaben
+// hinterlegten "großen" XP/Coin-Werte direkt zu vergeben, werden sie durch 10
+// geteilt (mindestens 1). So bleiben alle Zahlen in den Daten unverändert
+// lesbar, die tatsächliche Auszahlung ist aber ca. 1 Coin pro Aufgabe.
+function dampen(v){ return Math.max(1, Math.round(v/10)); }
+const REWARD_COOLDOWN_MS = 24*60*60*1000;
+function todayStr(){ return new Date().toDateString(); }
+function xpForLevel(level){ return 500 + (level-1)*250; }
+function progress(){ return state.users[state.currentUser].progress; }
+
+function addXp(p, amount){
+  if (amount<=0) return false;
+  p.xp += amount;
+  let leveled = false;
+  while (p.xp >= xpForLevel(p.level)) { p.xp -= xpForLevel(p.level); p.level++; leveled = true; }
+  return leveled;
+}
+function addCoins(p, amount){
+  if (amount<=0) return;
+  p.coins += amount; p.totalCoinsEarned += amount;
+}
+function addGems(p, amount){
+  if (amount<=0) return;
+  p.gems += amount;
+}
+function registerLearningDay(p){
+  const t = todayStr();
+  if (!p.lastLearnDate) p.streak = 1;
+  else if (p.lastLearnDate === t) { /* heute schon aktiv */ }
+  else {
+    const y = new Date(); y.setDate(y.getDate()-1);
+    if (p.lastLearnDate === y.toDateString()) p.streak += 1;
+    else p.streak = 1;
+  }
+  p.lastLearnDate = t;
+  if (p.daily.date !== t) p.daily = {date:t, exToday:0, lessonsToday:0, xpToday:0, claimed:false};
+}
+function checkAchievements(p){
+  const unlocked = [];
+  ACHIEVEMENTS.forEach(a=>{
+    if (!p.unlocked.includes(a.id) && a.check(p)){
+      p.unlocked.push(a.id); addXp(p,a.xp); addCoins(p,a.coins); addGems(p, a.gems||0); unlocked.push(a);
+    }
+  });
+  return unlocked;
+}
+function recordExercise(p, exDef, exId, correct){
+  registerLearningDay(p);
+  if (correct){
+    p.currentStreak++; p.bestStreak = Math.max(p.bestStreak, p.currentStreak);
+    const firstTime = !p.completedExercises.includes(exId);
+    if (firstTime){ p.completedExercises.push(exId); p.totalSolved++; }
+
+    // Belohnung gibt's beim ersten Lösen — danach erst wieder, wenn seit der
+    // letzten Belohnung für GENAU DIESE Aufgabe 24 Stunden vergangen sind.
+    // So kann man Lektionen beliebig oft zum Üben wiederholen, aber nicht
+    // durch schnelles Wiederholen XP/Coins farmen.
+    const now = Date.now();
+    const last = p.exerciseCooldowns[exId];
+    const cooldownOver = !last || (now-last) >= REWARD_COOLDOWN_MS;
+    if (firstTime || cooldownOver){
+      p.exerciseCooldowns[exId] = now;
+      const xpGain = dampen(exDef.xp), coinGain = dampen(exDef.coins);
+      p.daily.exToday++; p.daily.xpToday += xpGain;
+      addXp(p, xpGain); addCoins(p, coinGain);
+    }
+  } else {
+    p.currentStreak = 0;
+  }
+  checkAchievements(p);
+}
+function completeLesson(p, lesson){
+  registerLearningDay(p);
+  const firstTime = !p.completedLessons.includes(lesson.id);
+  if (firstTime) p.completedLessons.push(lesson.id);
+
+  const now = Date.now();
+  const last = p.lessonCooldowns[lesson.id];
+  const cooldownOver = !last || (now-last) >= REWARD_COOLDOWN_MS;
+  if (firstTime || cooldownOver){
+    p.lessonCooldowns[lesson.id] = now;
+    const xpGain = dampen(lesson.xp);
+    p.daily.lessonsToday++; p.daily.xpToday += xpGain;
+    addXp(p, xpGain);
+  }
+  checkAchievements(p);
+}
+function lessonUnlocked(lesson, p){ return !lesson.req || p.completedLessons.includes(lesson.req); }
+
+/* ---------- MULTI-KURS-HELFER ---------- */
+function lessonsForCourse(courseId){ return LESSONS.filter(l=>(l.course||"csharp")===courseId); }
+function exerciseCourse(exId){
+  const def = EXERCISES[exId];
+  const lesson = def && LESSONS.find(l=>l.id===def.lesson);
+  return (lesson && lesson.course) || "csharp";
+}
+
+/* Arcade-Spiele sind komplett kostenlos (kein Coin-Einsatz mehr) und geben
+   NUR NOCH XP, niemals Coins — Coins verdient man ausschließlich in der
+   Factory. gameKey wird für die "Allrounder"-Errungenschaft mitgezählt. */
+function spendForGame(gameKey){
+  const p = progress();
+  p.arcadePlays++;
+  p.gamesPlayed[gameKey] = (p.gamesPlayed[gameKey]||0) + 1;
+  checkAchievements(p);
+  return true;
+}
+// Score-basierte XP (gedeckelt, damit Score-Farmen nicht zur Geldmaschine wird)
+// + eine kleine, ZEIT-basierte Bonus-XP fürs reine Spielen (unabhängig vom
+// Skill) — siehe awardPlaytimeXp(). Beides zusammen ersetzt die frühere Coin-Auszahlung.
+function payoutForGame(score){
+  const p = progress();
+  const xpEarned = Math.max(0, Math.min(30, Math.floor(score/15)));
+  addXp(p, xpEarned);
+  checkAchievements(p);
+  return xpEarned;
+}
+// Belohnt reine Spielzeit mit etwas XP (max. 5 Minuten pro Runde gewertet,
+// damit AFK-Stehenlassen nichts bringt). Gibt KEINE Coins.
+function awardPlaytimeXp(startedAtMs){
+  if (!startedAtMs) return 0;
+  const p = progress();
+  const seconds = Math.min(300, Math.max(0, (Date.now()-startedAtMs)/1000));
+  const minutes = Math.floor(seconds/60);
+  const xpEarned = minutes * 2;
+  if (xpEarned>0) addXp(p, xpEarned);
+  return xpEarned;
+}

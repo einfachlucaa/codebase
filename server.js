@@ -1,6 +1,7 @@
 const path = require("path");
 const express = require("express");
 const helmet = require("helmet");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 
 const config = require("./config/config");
@@ -22,6 +23,7 @@ async function main() {
   // aktuell mit Inline-Event-Handlern (onclick="...") arbeitet; für mehr
   // Sicherheit wäre eine Umstellung auf addEventListener + eigene CSP sinnvoll.
   app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(compression()); // gzip/br für JS/CSS/HTML/JSON — deutlich weniger Übertragungsvolumen
   app.use(express.json({ limit: "600kb" })); // Profilbilder (Base64) brauchen etwas mehr als Standard-JSON
   app.use(cookieParser());
 

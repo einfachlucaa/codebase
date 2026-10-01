@@ -8,6 +8,7 @@ const ICONS = {
   target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 5H5a3 3 0 0 0 3 5"/><path d="M16 5h3a3 3 0 0 1-3 5"/><path d="M12 13v3"/><path d="M9 20h6"/><path d="M10 17h4v3h-4Z"/>',
   gamepad: '<rect x="2.5" y="7.5" width="19" height="10" rx="5"/><path d="M7 10.5v4"/><path d="M5 12.5h4"/><circle cx="16" cy="10.5" r="1" fill="currentColor"/><circle cx="18.2" cy="13" r="1" fill="currentColor"/>',
+  trending: '<polyline points="3,17 9,11 13,15 21,6"/><polyline points="14,6 21,6 21,13"/>',
   users: '<circle cx="9" cy="8" r="3.2"/><path d="M2.7 19c.6-3 3-5 6.3-5s5.7 2 6.3 5"/><circle cx="17" cy="8.5" r="2.6"/><path d="M16 13.3c2.6.3 4.4 2 4.9 4.3"/>',
   medal: '<circle cx="12" cy="14.5" r="6"/><path d="M9.5 8.5 7 2h3l2 4.5L14 2h3l-2.5 6.5"/><path d="M10 14.5 11.5 16l3-3.2"/>',
   user: '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1-4 4-6.2 7.5-6.2s6.5 2.2 7.5 6.2"/>',
