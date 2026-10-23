@@ -9,6 +9,7 @@ function renderAuth(){
   const err = state.authError ? `<div class="error-text">${escapeHtml(state.authError)}</div>` : `<div class="error-text"></div>`;
   const busy = state.authBusy;
   const mode = state.authMode;
+  const d = state.authDraft || (state.authDraft = {user:""});
   const footer = `<div class="auth-footer">© ${new Date().getFullYear()} CodeBase · <button class="btn-ghost" onclick="setAuthMode('impressum')">Impressum</button> · <button class="btn-ghost" onclick="setAuthMode('agb')">AGB</button> · <button class="btn-ghost" onclick="setAuthMode('datenschutz')">Datenschutz</button></div>`;
   if (mode==="impressum" || mode==="agb" || mode==="datenschutz") return renderLegalPage(mode) + footer;
   const tabs = `<div class="auth-tabs">
@@ -18,6 +19,25 @@ function renderAuth(){
   </div>`;
   const logo = `<div class="auth-logo" style="font-size:40px;">🚀</div>`;
 
+  if (mode==="forgot"){
+    return `
+    <div class="auth-wrap"><div><div class="card auth-card">
+      ${logo}
+      <div class="title" style="text-align:center;">Passwort vergessen</div>
+      <div class="body-text" style="margin-bottom:20px; text-align:center;">Gib deinen Nutzernamen und den Wiederherstellungs-Code ein, den du bei der Registrierung bekommen hast. Hast du keinen Code, kann dir ein Admin ein neues Passwort setzen.</div>
+      <div class="field-label">Nutzername</div>
+      <input id="fgUser" type="text" value="${escapeHtml(d.user)}" oninput="state.authDraft.user=this.value" autocomplete="username" style="width:100%;"/>
+      <div class="field-label" style="margin-top:10px;">Wiederherstellungs-Code</div>
+      <input id="fgCode" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" style="width:100%; text-transform:uppercase;"/>
+      <div class="field-label" style="margin-top:10px;">Neues Passwort (mind. 6 Zeichen)</div>
+      <input id="fgPass" type="password" autocomplete="new-password" style="width:100%;"
+        onkeydown="if(event.key==='Enter')doResetPassword(document.getElementById('fgUser').value, document.getElementById('fgCode').value, document.getElementById('fgPass').value)"/>
+      ${err}
+      <button class="btn btn-primary" style="width:100%; margin:14px 0 6px;" ${busy?"disabled":""}
+        onclick="doResetPassword(document.getElementById('fgUser').value, document.getElementById('fgCode').value, document.getElementById('fgPass').value)">${busy?"Setze zurück...":"Passwort zurücksetzen"}</button>
+      <button class="btn btn-secondary" style="width:100%;" onclick="setAuthMode('login')">← Zurück zum Login</button>
+    </div>${footer}</div></div>`;
+  }
   if (mode==="login"){
     return `
     <div class="auth-wrap"><div><div class="card auth-card">
@@ -26,12 +46,13 @@ function renderAuth(){
       <div class="title" style="text-align:center;">Willkommen zurück!</div>
       <div class="body-text" style="margin-bottom:20px; text-align:center;">Melde dich an — dein Fortschritt lebt in der Datenbank.</div>
       <div class="field-label">Nutzername</div>
-      <input id="loginUser" type="text" placeholder="dein Nutzername" autocomplete="username" style="width:100%;"/>
+      <input id="loginUser" type="text" placeholder="dein Nutzername" autocomplete="username" value="${escapeHtml(d.user)}" oninput="state.authDraft.user=this.value" style="width:100%;"/>
       <div class="field-label" style="margin-top:10px;">Passwort</div>
       <input id="loginPass" type="password" placeholder="dein Passwort" autocomplete="current-password" style="width:100%;"
         onkeydown="if(event.key==='Enter')doLogin(document.getElementById('loginUser').value, document.getElementById('loginPass').value)"/>
       ${err}
-      <button class="btn btn-primary" style="width:100%; margin:14px 0;" ${busy?"disabled":""}
+      <div style="text-align:right; margin-top:6px;"><button class="btn-ghost" onclick="setAuthMode('forgot')">Passwort vergessen?</button></div>
+      <button class="btn btn-primary" style="width:100%; margin:10px 0 14px;" ${busy?"disabled":""}
         onclick="doLogin(document.getElementById('loginUser').value, document.getElementById('loginPass').value)">${busy?"Anmelden...":"Anmelden"}</button>
       ${state.wasBannedUsername ? `
         <div class="card" style="text-align:left; margin-top:6px; background:rgba(255,69,58,0.1); border-color:rgba(255,69,58,0.3);">
@@ -49,7 +70,7 @@ function renderAuth(){
     <div class="title" style="text-align:center;">Konto erstellen</div>
     <div class="body-text" style="margin-bottom:20px; text-align:center;">Nutzername: 3-20 Zeichen (Buchstaben/Zahlen/_). Passwort: mind. 6 Zeichen.</div>
     <div class="field-label">Nutzername</div>
-    <input id="regUser" type="text" placeholder="z.B. Max" autocomplete="username" style="width:100%;"/>
+    <input id="regUser" type="text" placeholder="z.B. Max" autocomplete="username" value="${escapeHtml(d.user)}" oninput="state.authDraft.user=this.value" style="width:100%;"/>
     <div class="field-label" style="margin-top:10px;">Passwort</div>
     <input id="regPass" type="password" placeholder="Passwort" autocomplete="new-password" style="width:100%;"/>
     <div class="field-label" style="margin-top:10px;">Passwort wiederholen</div>
@@ -1059,7 +1080,10 @@ function liveAreaInner(){
 function refreshLiveArea(){
   const el = document.getElementById("liveArea");
   if (!el){ render(); return; } // Zielbereich existiert (noch) nicht -> normaler voller Render als Fallback
-  el.innerHTML = liveAreaInner();
+  const html = liveAreaInner();
+  if (el._lastHtml === html) return; // nichts geändert -> DOM nicht anfassen (kein Flackern/Animations-Neustart)
+  el._lastHtml = html;
+  el.innerHTML = html;
 }
 
 /* ---------- RENDER: PROJEKTE / CODE-IDE ---------- */
@@ -1303,6 +1327,7 @@ function renderAdminEditModal(){
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">
         <button class="btn btn-secondary" onclick="adminToggleMute('${u._id}', ${!u.isMuted})">${u.isMuted?icon("check",14)+' Entstummen':icon("ban",14)+' Stummschalten'}</button>
         <button class="btn btn-secondary" onclick="adminKickUser('${u._id}','${escapeHtml(u.username)}')">${icon("logout",14)} Rauswerfen</button>
+        <button class="btn btn-secondary" onclick="adminResetPassword('${u._id}','${escapeHtml(u.username)}')">${icon("key",14)} Passwort zurücksetzen</button>
       </div>
       ${u.warnings && u.warnings.length ? `
         <div class="muted" style="margin-bottom:6px;">Verwarnungen (${u.warnings.length}):</div>
@@ -1487,6 +1512,7 @@ function renderSettings(){
       <button class="btn btn-secondary" onclick="changeUsername(document.getElementById('settingsUsername').value)">Ändern</button>
     </div>
     <div class="body-text" style="margin-bottom:6px;">Rolle: <b>${escapeHtml(u.role)}</b></div>
+    <button class="btn btn-secondary" style="margin:6px 0 10px;" onclick="generateRecoveryCode()">🔑 Neuen Wiederherstellungs-Code erzeugen</button>
     <div class="muted">Bio, Avatar, Profilbild und Banner änderst du im <button class="btn-ghost" onclick="goto('profile')">Profil</button>.</div>
     <button class="btn btn-secondary" style="margin-top:14px;" onclick="logout()">Abmelden</button>
   </div>

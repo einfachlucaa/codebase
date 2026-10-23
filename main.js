@@ -101,6 +101,7 @@ function hydrateUser(serverUser){
   state.currentUser = serverUser.username;
   // Anker für die Delta-Berechnung beim nächsten Sync IMMER auf den frischen
   // Server-Stand setzen (nicht auf einen evtl. veralteten lokalen Wert).
+  state._lastStatusSnap = undefined; // neuer Login -> Status-Vergleich neu starten
   state.lastSyncedEconomy = { coins: state.users[serverUser.username].progress.coins, gems: state.users[serverUser.username].progress.gems };
   state.underReviewBy = serverUser.underReviewBy || null;
   startProgressReconcile();
@@ -112,6 +113,7 @@ function determineInitialAuthMode(){
   const path = window.location.pathname;
   if (path === "/login") return "login";
   if (path === "/register") return "register";
+  if (path === "/forgot") return "forgot";
   return localStorage.getItem("cb_visited") ? "login" : "register";
 }
 function syncAuthUrl(mode){
@@ -121,7 +123,7 @@ function syncAuthUrl(mode){
 window.addEventListener("popstate", ()=>{
   if (!state.currentUser){
     const path = window.location.pathname;
-    if (path==="/login" || path==="/register"){ state.authMode = path.slice(1); render(); }
+    if (path==="/login" || path==="/register" || path==="/forgot"){ state.authMode = path.slice(1); render(); }
   }
 });
 
@@ -156,14 +158,42 @@ async function doRegister(username, password, passwordConfirm){
   }
   state.authBusy = true; state.authError=""; render();
   try{
-    const { user } = await apiPost("/auth/register", { username:(username||"").trim(), password });
+    const { user, recoveryCode } = await apiPost("/auth/register", { username:(username||"").trim(), password });
     hydrateUser(user);
     enterApp();
+    if (recoveryCode) showRecoveryCode(recoveryCode);
   } catch(err){
     state.authError = err.message;
   } finally {
     state.authBusy = false; render();
   }
+}
+function showRecoveryCode(code){
+  return customAlert(`Dein Wiederherstellungs-Code:\n\n${code}\n\nSchreib ihn dir auf oder mach ein Foto! Damit kannst du dein Passwort zurücksetzen, falls du es vergisst. Er wird nur EINMAL angezeigt.`, "🔑 Wichtig: Code speichern");
+}
+async function doResetPassword(username, code, newPass){
+  if (state.authBusy) return;
+  state.authBusy = true; state.authError=""; render();
+  try{
+    const r = await apiPost("/auth/reset-password", { username:(username||"").trim(), recoveryCode:code, newPassword:newPass });
+    state.authBusy = false; state.authMode = "login"; syncAuthUrl("login"); render();
+    await showRecoveryCode(r.recoveryCode);
+    return;
+  } catch(err){ state.authError = err.message; }
+  state.authBusy = false; render();
+}
+async function generateRecoveryCode(){
+  const pw = await customPrompt("Zur Sicherheit: gib dein aktuelles Passwort ein. Ein bisheriger Code wird ungültig.", "", "Neuer Wiederherstellungs-Code");
+  if (!pw) return;
+  try{ const { recoveryCode } = await apiPost("/auth/recovery-code", { password: pw }); await showRecoveryCode(recoveryCode); }
+  catch(err){ await customAlert(err.message); }
+}
+async function adminResetPassword(id, username){
+  if (!(await customConfirm(`Neues Zufalls-Passwort für ${username} setzen? Er wird ausgeloggt.`))) return;
+  try{
+    const { tempPassword } = await apiPost(`/admin/users/${id}/reset-password`);
+    await customAlert(`Neues Passwort für ${username}:\n\n${tempPassword}\n\nGib es ihm weiter — es wird nur jetzt angezeigt.`, "Passwort zurückgesetzt");
+  } catch(err){ await customAlert(err.message); }
 }
 async function logout(){
   exitArcadeTimers();
@@ -245,14 +275,20 @@ function startProgressReconcile(){
       // WICHTIG: nur neu zeichnen, wenn sich wirklich etwas geändert hat —
       // sonst "blitzt" die komplette Seite alle 10 Sekunden ohne jeden Grund
       // (das war die Hauptursache für das gemeldete Dauer-Flackern).
-      const before = JSON.stringify({p:u.progress, r:state.underReviewBy, ban:u.banned, warn:(u.warnings||[]).length});
+      // URSACHE des Dauer-Neuzeichnens: "vorher" (lokaler Zustand, ban=undefined) und
+      // "nachher" (Serverantwort, ban=false) waren nie identisch -> alle 10s ein voller
+      // render(). Jetzt wird die rohe Serverantwort mit der VORHERIGEN Serverantwort
+      // verglichen; nur bei echter Änderung wird übernommen und gezeichnet.
+      const snap = JSON.stringify(fresh);
+      if (snap === state._lastStatusSnap) return;
+      const firstSnap = state._lastStatusSnap === undefined;
+      state._lastStatusSnap = snap;
       u.progress = Object.assign(newProgress(), fresh.progress);
       state.lastSyncedEconomy = { coins: u.progress.coins, gems: u.progress.gems };
       state.underReviewBy = fresh.underReviewBy || null;
       u.warnings = fresh.warnings || [];
       u.isMuted = !!fresh.isMuted;
-      const after = JSON.stringify({p:u.progress, r:state.underReviewBy, ban:fresh.banned, warn:u.warnings.length});
-      if (before !== after) render();
+      if (!firstSnap) render();
     } catch(err){
       if (err.status===401 || err.status===403) handleSessionEnded(err);
     }
