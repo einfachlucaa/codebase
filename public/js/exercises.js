@@ -125,6 +125,7 @@ function applySuggestion(textareaEl, container, idx, chosen){
   if (box) box.innerHTML = "";
 }
 function exerciseTabComplete(ev, container, idx){
+  if (handleAutoPair(ev, (val)=>setText(container, idx, val, ev))) return; // Klammern/Anführungszeichen zuerst
   if (ev.key !== "Tab") return;
   const ta = ev.target;
   const top = ta.dataset.topSuggestion;

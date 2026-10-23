@@ -58,6 +58,14 @@ const ProgressSchema = new mongoose.Schema(
       prestigeLevel: { type: Number, default: 0 }, // permanenter Produktions-Bonus nach Reset
       autoCollect: { type: Boolean, default: false }, // "Manager": Abholen läuft automatisch mit
     },
+    // Krypto-Demokonto: eigenes, von den normalen Coins GETRENNTES Guthaben
+    // (reines Übungs-/Spielkonto, kein Weg um echte Coins zu "erspekulieren").
+    crypto: {
+      balance: { type: Number, default: 5000 },
+      position: { type: mongoose.Schema.Types.Mixed, default: null }, // {side, entryPrice, size, openedAt}
+      history: { type: mongoose.Schema.Types.Mixed, default: [] }, // letzte Trades
+      lastResetAt: { type: Date, default: null },
+    },
   },
   { _id: false }
 );
@@ -83,6 +91,8 @@ const UserSchema = new mongoose.Schema(
       match: /^[a-zA-Z0-9_]+$/, // keine Sonderzeichen -> vermeidet Injection-/Encoding-Ärger
     },
     passwordHash: { type: String, required: true, select: false },
+    // bcrypt-Hash des Wiederherstellungs-Codes (Passwort vergessen) — nie im Klartext gespeichert
+    recoveryHash: { type: String, default: null, select: false },
     role: { type: String, enum: ROLES, default: "user" },
     // Zusätzliche, individuell vergebene Permissions (siehe src/config/permissions.js)
     permissions: { type: [String], default: [] },
@@ -142,6 +152,20 @@ const UserSchema = new mongoose.Schema(
 // WIRKLICH JEDER Pfad (Admin-Edit, Idle-Games, Casino, Shop, Sync ...)
 // automatisch erfasst ist, auch zukünftige. Zusätzlich NaN-Schutz.
 const MAX_ECONOMY_VALUE = 10_000_000;
+// Indizes für die Leaderboard-Abfragen (banned:false + je ein Sortier-Feld) —
+// ohne die würde MongoDB bei wachsender Nutzerzahl bei jeder Leaderboard-
+// Anfrage die komplette Collection durchsuchen müssen (Full Collection Scan).
+UserSchema.index({ banned: 1, "progress.level": -1, "progress.xp": -1 });
+UserSchema.index({ banned: 1, "progress.coins": -1 });
+UserSchema.index({ banned: 1, "progress.gems": -1 });
+UserSchema.index({ banned: 1, "progress.streak": -1 });
+UserSchema.index({ banned: 1, "progress.bubbleHigh": -1 });
+UserSchema.index({ banned: 1, "progress.tapHigh": -1 });
+UserSchema.index({ banned: 1, "progress.memoryHigh": -1 });
+UserSchema.index({ banned: 1, "progress.quizRushHigh": -1 });
+UserSchema.index({ banned: 1, "progress.pacmanHigh": -1 });
+UserSchema.index({ banned: 1, "progress.snakeHigh": -1 });
+
 UserSchema.pre("save", function (next) {
   const p = this.progress;
   if (p) {
@@ -161,6 +185,23 @@ UserSchema.pre("save", function (next) {
 UserSchema.methods.setPassword = async function (plainPassword) {
   this.passwordHash = await bcrypt.hash(plainPassword, config.bcryptSaltRounds);
 };
+// Erzeugt einen neuen Wiederherstellungs-Code (z. B. "K7QM-X2PD-9WTA"),
+// speichert nur den Hash und gibt den Klartext EINMALIG zurück.
+UserSchema.methods.generateRecoveryCode = async function () {
+  const crypto = require("crypto");
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ohne verwechselbare Zeichen (0/O, 1/I)
+  const bytes = crypto.randomBytes(12);
+  let raw = "";
+  for (let i = 0; i < 12; i++) raw += alphabet[bytes[i] % alphabet.length];
+  const code = raw.match(/.{4}/g).join("-");
+  this.recoveryHash = await bcrypt.hash(raw, config.bcryptSaltRounds);
+  return code;
+};
+UserSchema.methods.checkRecoveryCode = function (input) {
+  if (!this.recoveryHash) return Promise.resolve(false);
+  const raw = String(input || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return bcrypt.compare(raw, this.recoveryHash);
+};
 UserSchema.methods.comparePassword = function (plainPassword) {
   return bcrypt.compare(plainPassword, this.passwordHash);
 };
@@ -177,6 +218,7 @@ UserSchema.methods.totalXp = function () {
 UserSchema.set("toJSON", {
   transform: (_doc, ret) => {
     delete ret.passwordHash;
+    delete ret.recoveryHash;
     delete ret.__v;
     return ret;
   },

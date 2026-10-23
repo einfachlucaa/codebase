@@ -51,7 +51,7 @@ function renderModal(){
   <div class="modal-overlay" ${overlayClick}>
     <div class="modal-box">
       <div class="section-title" style="margin-bottom:8px;">${escapeHtml(m.title)}</div>
-      <div class="body-text">${escapeHtml(m.message)}</div>
+      <div class="body-text" style="white-space:pre-line;">${escapeHtml(m.message)}</div>
       ${body}
       <div style="margin-top:18px;">${buttons}</div>
     </div>

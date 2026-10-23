@@ -1,3 +1,59 @@
+/* ---------- AUTO-PAIRING: Klammern & Anführungszeichen ----------
+   Gemeinsam genutzt von der Projekte-IDE und den Code-Aufgaben in Lektionen.
+   onChanged(newValue) wird aufgerufen, wenn sich durch die Automatik etwas
+   geändert hat, damit der Aufrufer seinen eigenen State synchron hält. */
+const AUTOPAIR_MAP = { "(":")", "[":"]", "{":"}", '"':'"', "'":"'" };
+const AUTOPAIR_CLOSERS = [")","]","}",'"',"'"];
+function handleAutoPair(ev, onChanged){
+  const ta = ev.target;
+  const key = ev.key;
+
+  if (AUTOPAIR_MAP[key]){
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const closing = AUTOPAIR_MAP[key];
+    ev.preventDefault();
+    if (start !== end){
+      // Markierten Text mit dem Paar umschließen, statt ihn zu ersetzen.
+      const selected = ta.value.slice(start, end);
+      ta.value = ta.value.slice(0, start) + key + selected + closing + ta.value.slice(end);
+      ta.selectionStart = start + 1; ta.selectionEnd = start + 1 + selected.length;
+    } else {
+      ta.value = ta.value.slice(0, start) + key + closing + ta.value.slice(start);
+      ta.selectionStart = ta.selectionEnd = start + 1;
+    }
+    onChanged(ta.value);
+    return true;
+  }
+
+  if (AUTOPAIR_CLOSERS.includes(key) && ta.selectionStart===ta.selectionEnd){
+    // Schließendes Zeichen direkt vor dem Cursor? Dann nur drüberspringen,
+    // statt ein zweites einzufügen (so gibt's nie "doppelte" Klammern).
+    const pos = ta.selectionStart;
+    if (ta.value[pos]===key){
+      ev.preventDefault();
+      ta.selectionStart = ta.selectionEnd = pos+1;
+      return true;
+    }
+  }
+
+  if (key==="Backspace" && ta.selectionStart===ta.selectionEnd){
+    // Löscht man direkt zwischen einem automatisch erzeugten Paar, werden
+    // beide Zeichen auf einmal entfernt (fühlt sich sonst "klebrig" an).
+    const pos = ta.selectionStart;
+    if (pos>0){
+      const before = ta.value[pos-1], after = ta.value[pos];
+      if (AUTOPAIR_MAP[before]===after){
+        ev.preventDefault();
+        ta.value = ta.value.slice(0, pos-1) + ta.value.slice(pos+1);
+        ta.selectionStart = ta.selectionEnd = pos-1;
+        onChanged(ta.value);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /* ---------- CLIENTSEITIGE CODE-AUSFÜHRUNG ----------
    Kein externer Dienst mehr nötig (Piston ist seit Feb. 2026 nicht mehr frei
    zugänglich). JavaScript läuft in einem streng gesandboxten iframe

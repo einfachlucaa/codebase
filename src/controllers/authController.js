@@ -57,11 +57,13 @@ const register = asyncHandler(async (req, res) => {
     lastLoginIp: ip || null,
   });
   await user.setPassword(password);
+  const recoveryCode = await user.generateRecoveryCode();
   await user.save();
 
   sendAuthCookie(res, user._id, user.tokenVersion);
   logActivity(user, "register", { ip });
-  res.status(201).json({ user });
+  // Der Code wird nur dieses eine Mal im Klartext ausgeliefert
+  res.status(201).json({ user, recoveryCode });
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -96,6 +98,37 @@ const login = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
+// Passwort vergessen: Nutzername + Wiederherstellungs-Code + neues Passwort.
+// Gibt bewusst dieselbe generische Fehlermeldung zurück, egal ob Nutzer oder Code falsch ist.
+const resetPassword = asyncHandler(async (req, res) => {
+  const { username, recoveryCode, newPassword } = req.body;
+  if (!username || !recoveryCode || !newPassword) throw new ApiError(400, "Bitte alle Felder ausfüllen.");
+  if (typeof newPassword !== "string" || newPassword.length < 6) {
+    throw new ApiError(400, "Das neue Passwort muss mindestens 6 Zeichen haben.");
+  }
+  const user = await User.findOne({ username: String(username).trim() }).select("+passwordHash +recoveryHash");
+  const ok = user ? await user.checkRecoveryCode(recoveryCode) : false;
+  if (!ok) throw new ApiError(400, "Nutzername oder Wiederherstellungs-Code ist falsch. Wende dich sonst an einen Admin.");
+
+  await user.setPassword(newPassword);
+  user.tokenVersion = (user.tokenVersion || 0) + 1; // alte Sitzungen ungültig machen
+  const newCode = await user.generateRecoveryCode(); // Code ist einmalig -> neuer Code
+  await user.save();
+  logActivity(user, "role_change", { action: "password_reset", ip: req.ip });
+  res.json({ ok: true, recoveryCode: newCode });
+});
+
+// Eingeloggt: neuen Wiederherstellungs-Code erzeugen (für bestehende Konten ohne Code). Passwort nötig.
+const newRecoveryCode = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select("+passwordHash +recoveryHash");
+  if (!user || !(await user.comparePassword(req.body.password || ""))) {
+    throw new ApiError(401, "Falsches Passwort.");
+  }
+  const code = await user.generateRecoveryCode();
+  await user.save();
+  res.json({ recoveryCode: code });
+});
+
 const logout = asyncHandler(async (req, res) => {
   res.clearCookie(config.cookieName);
   res.json({ ok: true });
@@ -110,6 +143,27 @@ const me = asyncHandler(async (req, res) => {
     await req.user.save();
   }
   res.json({ user: req.user });
+});
+
+// Schlanke Variante von /me für den periodischen Hintergrund-Abgleich (alle
+// 10s im Frontend): OHNE Profilbild/Banner (können mehrere hundert KB Base64
+// sein) — die ändern sich praktisch nie und müssen nicht bei jedem Poll neu
+// über die Leitung gehen. Spart bei Nutzern mit eigenem Profilbild/Banner
+// den Großteil der Bandbreite dieses alle-10-Sekunden-Checks.
+const status = asyncHandler(async (req, res) => {
+  if (req.user.underReviewAt && Date.now() - req.user.underReviewAt.getTime() > 15 * 60 * 1000) {
+    req.user.underReviewBy = null;
+    req.user.underReviewAt = null;
+    await req.user.save();
+  }
+  const u = req.user;
+  res.json({
+    progress: u.progress,
+    banned: u.banned,
+    warnings: u.warnings,
+    underReviewBy: u.underReviewBy,
+    isMuted: u.isMuted,
+  });
 });
 
 // Öffentlicher Endpunkt (kein Login nötig, gesperrte Nutzer können sich ja
@@ -150,4 +204,5 @@ const changeUsername = asyncHandler(async (req, res) => {
   res.json({ user: req.user });
 });
 
-module.exports = { register, login, logout, me, requestUnban, changeUsername };
+module.exports = {
+  resetPassword, newRecoveryCode, register, login, logout, me, status, requestUnban, changeUsername };

@@ -20,6 +20,7 @@ router.get("/users/:id/messages", authorize(PERMISSIONS.MESSAGES_VIEW), ctrl.lis
 router.patch("/users/:id/reset-picture", authorize(PERMISSIONS.USERS_EDIT), ctrl.resetPicture);
 router.patch("/users/:id/full", authorize(PERMISSIONS.USERS_EDIT), ctrl.fullUpdate);
 router.post("/users/:id/kick", authorize(PERMISSIONS.USERS_BAN), ctrl.kickUser);
+router.post("/users/:id/reset-password", authorize(PERMISSIONS.USERS_EDIT), ctrl.resetUserPassword);
 router.patch("/users/:id/mute", authorize(PERMISSIONS.USERS_BAN), ctrl.muteUser);
 router.post("/users/:id/review-start", authorize(PERMISSIONS.USERS_VIEW), ctrl.startReview);
 router.post("/users/:id/review-end", authorize(PERMISSIONS.USERS_VIEW), ctrl.endReview);

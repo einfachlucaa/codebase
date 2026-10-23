@@ -119,6 +119,27 @@ const kickUser = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
+// Admin setzt ein Passwort zurück: erzeugt ein Zufalls-Passwort, das der Admin dem Nutzer mitteilt.
+// Der Nutzer wird ausgeloggt (tokenVersion). Admins können nur Nicht-Admins zurücksetzen,
+// außer sich selbst über die normale Passwort-vergessen-Funktion.
+const resetUserPassword = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select("+passwordHash");
+  if (!user) throw new ApiError(404, "Nutzer nicht gefunden.");
+  if (user.role === "admin" && String(user._id) !== String(req.user._id)) {
+    throw new ApiError(403, "Admin-Passwörter können nicht von anderen Admins zurückgesetzt werden.");
+  }
+  const crypto = require("crypto");
+  const alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(10);
+  let temp = "";
+  for (let i = 0; i < 10; i++) temp += alphabet[bytes[i] % alphabet.length];
+  await user.setPassword(temp);
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+  await user.save();
+  logActivity(req.user, "role_change", { targetUser: user.username, action: "password_reset" });
+  res.json({ tempPassword: temp });
+});
+
 // Stummschalten: Login bleibt möglich, aber keine Chat-Nachrichten mehr.
 const muteUser = asyncHandler(async (req, res) => {
   const { muted } = req.body;
@@ -269,5 +290,5 @@ const stats = asyncHandler(async (req, res) => {
 module.exports = {
   listUsers, getUser, editStats, setRole, setBanned, deleteUser, stats,
   warnUser, clearWarnings, clearFlag, listActivity, listUserMessages, resetPicture,
-  fullUpdate, listUnbanRequests, reviewUnbanRequest, kickUser, muteUser, startReview, endReview,
+  fullUpdate, listUnbanRequests, reviewUnbanRequest, kickUser, resetUserPassword, muteUser, startReview, endReview,
 };

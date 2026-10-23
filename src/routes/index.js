@@ -7,6 +7,8 @@ router.use("/leaderboard", require("./leaderboardRoutes"));
 router.use("/shop", require("./shopRoutes"));
 router.use("/casino", require("./casinoRoutes"));
 router.use("/friends", require("./friendsRoutes"));
+router.use("/groups", require("./groupRoutes"));
+router.use("/crypto", require("./cryptoRoutes"));
 router.use("/messages", require("./messageRoutes"));
 router.use("/idle", require("./idleRoutes"));
 router.use("/subscription", require("./subscriptionRoutes"));

@@ -27,6 +27,9 @@ let state = {
   handbuchTab: "intro",
   settingsLegal: null,
   legalMode: "impressum",
+  myGroups: null, activeGroup: null, activeGroupMembers: [], activeChannelId: null, groupMessages: [],
+  theme: localStorage.getItem("cb_theme") || "orange",
+  cryptoState: null,
   examSession: null,
   _navFlash: false,
   shop: null,          // {items, owned, coins}
@@ -49,7 +52,7 @@ let state = {
   casinoResult: null,  // letztes Casino-Ergebnis (für Animation/Anzeige)
   casinoSpinFrame: null, // aktuell angezeigte Zufallssymbole während des Slot-Spins
   friendsData: null,   // {friends, incoming, outgoing}
-  friendSearchResults: [],
+  friendSearchResults: null,
   cookieState: null,
   cookieClicks: 0,       // seit letztem Server-Sync gesammelte Klicks (lokal, wird periodisch synced)
   cookieBounce: 0,       // wechselt bei jedem Klick, triggert die Cookie-Animation neu

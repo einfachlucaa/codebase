@@ -30,6 +30,10 @@ function snakeSetDir(dir){
   s.nextDir = dir;
 }
 function snakeKeyHandler(e){
+  // Nur reagieren, wenn Snake wirklich läuft und der Fokus nicht in einem Eingabefeld liegt
+  const t = e.target, tag = t && t.tagName;
+  if (tag==="INPUT" || tag==="TEXTAREA" || tag==="SELECT" || (t && t.isContentEditable)) return;
+  if (!state.snake || state.snake.over || state.arcadeGame!=="snake") return;
   const map = {ArrowUp:"Up", ArrowDown:"Down", ArrowLeft:"Left", ArrowRight:"Right", w:"Up", s:"Down", a:"Left", d:"Right"};
   if (map[e.key]){ e.preventDefault(); snakeSetDir(map[e.key]); }
 }

@@ -9,6 +9,7 @@ function renderAuth(){
   const err = state.authError ? `<div class="error-text">${escapeHtml(state.authError)}</div>` : `<div class="error-text"></div>`;
   const busy = state.authBusy;
   const mode = state.authMode;
+  const d = state.authDraft || (state.authDraft = {user:""});
   const footer = `<div class="auth-footer">© ${new Date().getFullYear()} CodeBase · <button class="btn-ghost" onclick="setAuthMode('impressum')">Impressum</button> · <button class="btn-ghost" onclick="setAuthMode('agb')">AGB</button> · <button class="btn-ghost" onclick="setAuthMode('datenschutz')">Datenschutz</button></div>`;
   if (mode==="impressum" || mode==="agb" || mode==="datenschutz") return renderLegalPage(mode) + footer;
   const tabs = `<div class="auth-tabs">
@@ -18,6 +19,25 @@ function renderAuth(){
   </div>`;
   const logo = `<div class="auth-logo" style="font-size:40px;">🚀</div>`;
 
+  if (mode==="forgot"){
+    return `
+    <div class="auth-wrap"><div><div class="card auth-card">
+      ${logo}
+      <div class="title" style="text-align:center;">Passwort vergessen</div>
+      <div class="body-text" style="margin-bottom:20px; text-align:center;">Gib deinen Nutzernamen und den Wiederherstellungs-Code ein, den du bei der Registrierung bekommen hast. Hast du keinen Code, kann dir ein Admin ein neues Passwort setzen.</div>
+      <div class="field-label">Nutzername</div>
+      <input id="fgUser" type="text" value="${escapeHtml(d.user)}" oninput="state.authDraft.user=this.value" autocomplete="username" style="width:100%;"/>
+      <div class="field-label" style="margin-top:10px;">Wiederherstellungs-Code</div>
+      <input id="fgCode" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" style="width:100%; text-transform:uppercase;"/>
+      <div class="field-label" style="margin-top:10px;">Neues Passwort (mind. 6 Zeichen)</div>
+      <input id="fgPass" type="password" autocomplete="new-password" style="width:100%;"
+        onkeydown="if(event.key==='Enter')doResetPassword(document.getElementById('fgUser').value, document.getElementById('fgCode').value, document.getElementById('fgPass').value)"/>
+      ${err}
+      <button class="btn btn-primary" style="width:100%; margin:14px 0 6px;" ${busy?"disabled":""}
+        onclick="doResetPassword(document.getElementById('fgUser').value, document.getElementById('fgCode').value, document.getElementById('fgPass').value)">${busy?"Setze zurück...":"Passwort zurücksetzen"}</button>
+      <button class="btn btn-secondary" style="width:100%;" onclick="setAuthMode('login')">← Zurück zum Login</button>
+    </div>${footer}</div></div>`;
+  }
   if (mode==="login"){
     return `
     <div class="auth-wrap"><div><div class="card auth-card">
@@ -26,12 +46,13 @@ function renderAuth(){
       <div class="title" style="text-align:center;">Willkommen zurück!</div>
       <div class="body-text" style="margin-bottom:20px; text-align:center;">Melde dich an — dein Fortschritt lebt in der Datenbank.</div>
       <div class="field-label">Nutzername</div>
-      <input id="loginUser" type="text" placeholder="dein Nutzername" autocomplete="username" style="width:100%;"/>
+      <input id="loginUser" type="text" placeholder="dein Nutzername" autocomplete="username" value="${escapeHtml(d.user)}" oninput="state.authDraft.user=this.value" style="width:100%;"/>
       <div class="field-label" style="margin-top:10px;">Passwort</div>
       <input id="loginPass" type="password" placeholder="dein Passwort" autocomplete="current-password" style="width:100%;"
         onkeydown="if(event.key==='Enter')doLogin(document.getElementById('loginUser').value, document.getElementById('loginPass').value)"/>
       ${err}
-      <button class="btn btn-primary" style="width:100%; margin:14px 0;" ${busy?"disabled":""}
+      <div style="text-align:right; margin-top:6px;"><button class="btn-ghost" onclick="setAuthMode('forgot')">Passwort vergessen?</button></div>
+      <button class="btn btn-primary" style="width:100%; margin:10px 0 14px;" ${busy?"disabled":""}
         onclick="doLogin(document.getElementById('loginUser').value, document.getElementById('loginPass').value)">${busy?"Anmelden...":"Anmelden"}</button>
       ${state.wasBannedUsername ? `
         <div class="card" style="text-align:left; margin-top:6px; background:rgba(255,69,58,0.1); border-color:rgba(255,69,58,0.3);">
@@ -49,7 +70,7 @@ function renderAuth(){
     <div class="title" style="text-align:center;">Konto erstellen</div>
     <div class="body-text" style="margin-bottom:20px; text-align:center;">Nutzername: 3-20 Zeichen (Buchstaben/Zahlen/_). Passwort: mind. 6 Zeichen.</div>
     <div class="field-label">Nutzername</div>
-    <input id="regUser" type="text" placeholder="z.B. Max" autocomplete="username" style="width:100%;"/>
+    <input id="regUser" type="text" placeholder="z.B. Max" autocomplete="username" value="${escapeHtml(d.user)}" oninput="state.authDraft.user=this.value" style="width:100%;"/>
     <div class="field-label" style="margin-top:10px;">Passwort</div>
     <input id="regPass" type="password" placeholder="Passwort" autocomplete="new-password" style="width:100%;"/>
     <div class="field-label" style="margin-top:10px;">Passwort wiederholen</div>
@@ -110,6 +131,7 @@ function renderShell(inner){
     ["dashboard", icon("home",18), "Dashboard"], ["learning", icon("book",18), "Lernen"], ["exercises", icon("target",18), "Aufgaben"],
     ["achievements", icon("trophy",18), "Erfolge"], ["games", icon("gamepad",18), "Spiele"],
     ["projects", icon("terminal",18), "Projekte"], ["handbuch", icon("bookmark",18), "Handbuch"],
+    ["groups", icon("users",18), "Server"],
     ["shop", icon("wallet",18), "Shop"], ["subscription", icon("card",18), "Abo"], ["friends", icon("users",18), "Freunde"],
     ["leaderboard", icon("medal",18), "Leaderboard"], ["profile", icon("user",18), "Profil"], ["settings", icon("settings",18), "Einstellungen"],
   ];
@@ -594,6 +616,74 @@ function renderShop(){
   return html;
 }
 
+/* ---------- RENDER: KRYPTO-HANDELSSPIEL ---------- */
+function cryptoChartSvg(history){
+  if (!history || history.length<2) return `<div class="muted" style="padding:40px; text-align:center;">Lade Kursdaten...</div>`;
+  const w = 100, h = 36;
+  const prices = history.map(pt=>pt.p);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = (max-min) || 1;
+  const pts = history.map((pt,i)=>{
+    const x = (i/(history.length-1))*w;
+    const y = h - ((pt.p-min)/range)*h;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
+  const up = prices[prices.length-1] >= prices[0];
+  const color = up ? "#30d158" : "#ff453a";
+  const areaPts = `0,${h} ${pts} ${w},${h}`;
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:180px;">
+    <polygon points="${areaPts}" fill="${color}" opacity="0.12"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+function renderCrypto(){
+  const s = state.cryptoState;
+  if (!s) return `<div class="body-text">Lade...</div>`;
+  const up = s.priceHistory && s.priceHistory.length>1 && s.priceHistory[s.priceHistory.length-1].p >= s.priceHistory[0].p;
+  return `
+  <div class="section-title">${icon("trending",18)} Krypto-Handel (Demo)</div>
+  <div class="body-text" style="margin-bottom:6px;">Übungskonto mit echtem Live-Kurs von Bitcoin (CoinGecko) — eigenes Guthaben, komplett getrennt von deinen normalen Coins. ${s.live?'<span style="color:var(--success);">● Live-Daten</span>':'<span class="muted">● Simulierter Kurs (API gerade nicht erreichbar)</span>'}</div>
+  <div style="margin:10px 0 20px;">Demo-Guthaben: <b style="color:var(--coin); font-size:18px;">$${s.balance.toFixed(2)}</b></div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+      <div><b style="font-size:13px;">BTC / USD</b></div>
+      <div style="font-size:26px; font-weight:800; color:${up?'var(--success)':'var(--danger)'};">$${s.price.toLocaleString('de-DE',{maximumFractionDigits:2})}</div>
+    </div>
+    ${cryptoChartSvg(s.priceHistory)}
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="section-title">${s.position ? "Offene Position" : "Position eröffnen"}</div>
+      ${s.position ? `
+        <div class="body-text" style="margin-bottom:6px;">${s.position.side==='buy'?'📈 Long (Buy)':'📉 Short (Sell)'} — Einsatz $${s.position.size.toFixed(2)}</div>
+        <div class="muted" style="margin-bottom:10px;">Einstieg: $${s.position.entryPrice.toLocaleString('de-DE',{maximumFractionDigits:2})}</div>
+        <div style="font-size:22px; font-weight:700; margin-bottom:14px; color:${s.position.unrealizedPnl>=0?'var(--success)':'var(--danger)'};">
+          ${s.position.unrealizedPnl>=0?'+':''}$${s.position.unrealizedPnl.toFixed(2)}
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="closeCryptoPosition()">Position schließen</button>
+      ` : `
+        <div class="field-label">Betrag ($)</div>
+        <input id="cryptoAmount" type="number" min="1" max="${s.balance}" value="${Math.min(100, Math.floor(s.balance))}" style="width:100%; margin-bottom:12px;"/>
+        <div style="display:flex; gap:10px;">
+          <button class="btn" style="flex:1; background:var(--success); color:white;" onclick="openCryptoPosition('buy')">${icon("arrowRight",14)} Buy (Long)</button>
+          <button class="btn" style="flex:1; background:var(--danger); color:white;" onclick="openCryptoPosition('sell')">Sell (Short)</button>
+        </div>
+        ${s.canReset ? `<button class="btn btn-secondary" style="width:100%; margin-top:14px;" onclick="resetCryptoBalance()">Guthaben zurücksetzen (pleite)</button>` : ""}
+      `}
+    </div>
+    <div class="card">
+      <div class="section-title">Letzte Trades</div>
+      ${s.history.length ? s.history.map(h=>`
+        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px;">
+          <span>${h.side==='buy'?'📈':'📉'} $${h.size.toFixed(0)}</span>
+          <span style="color:${h.pnl>=0?'var(--success)':'var(--danger)'};">${h.pnl>=0?'+':''}$${h.pnl.toFixed(2)}</span>
+        </div>`).join("") : `<div class="body-text muted">Noch keine abgeschlossenen Trades.</div>`}
+    </div>
+  </div>`;
+}
+
 /* ---------- RENDER: CASINO (nur virtuelle Coins, kein Echtgeld) ---------- */
 /* ---------- CASINO: SPIELKARTE (SVG statt Emoji) ---------- */
 function playingCardHtml(label, hidden){
@@ -766,15 +856,27 @@ function renderFriends(){
   let html = `<div class="title">👥 Freunde</div>
   <div class="body-text" style="margin-bottom:16px;">Nutzer suchen, Freundschaftsanfragen senden, verwalten und schreiben.</div>
   <input type="text" placeholder="Nutzer suchen..." style="max-width:280px; margin-bottom:12px;" oninput="searchFriendUsers(this.value)"/>`;
-  if (state.friendSearchResults.length){
-    html += `<div class="card" style="margin-bottom:20px;">`;
-    state.friendSearchResults.forEach(u=>{
-      html += `<div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
-        <span style="font-size:20px;">${u.avatar}</span><b>${escapeHtml(u.username)}</b><span class="muted">Lvl ${u.progress.level}</span>
-        <button class="btn btn-secondary" style="margin-left:auto; padding:6px 12px;" onclick="sendFriendRequest('${u._id}')">+ Anfrage</button>
-      </div>`;
-    });
-    html += `</div>`;
+  if (state.friendSearchResults==="loading"){
+    html += `<div class="body-text muted" style="margin-bottom:16px;">Suche...</div>`;
+  } else if (state.friendSearchResults && state.friendSearchResults.error){
+    html += `<div class="body-text" style="color:var(--danger); margin-bottom:16px;">Fehler bei der Suche: ${escapeHtml(state.friendSearchResults.error)}</div>`;
+  } else if (Array.isArray(state.friendSearchResults)){
+    if (!state.friendSearchResults.length){
+      html += `<div class="body-text muted" style="margin-bottom:16px;">Keine Nutzer gefunden — Groß-/Kleinschreibung egal, aber der Nutzername muss ziemlich genau passen.</div>`;
+    } else {
+      html += `<div class="card" style="margin-bottom:20px;">`;
+      state.friendSearchResults.forEach(u=>{
+        const alreadyFriend = state.friendsData && state.friendsData.friends.some(f=>f._id===u._id);
+        const alreadyPending = state.friendsData && state.friendsData.outgoing.some(r=>(r.user._id||r.user)===u._id);
+        html += `<div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+          <span style="font-size:20px;">${u.avatar}</span><b>${escapeHtml(u.username)}</b><span class="muted">Lvl ${u.progress.level}</span>
+          ${alreadyFriend ? `<span class="muted" style="margin-left:auto;">Schon befreundet</span>`
+            : alreadyPending ? `<span class="muted" style="margin-left:auto;">Anfrage ausstehend</span>`
+            : `<button class="btn btn-secondary" style="margin-left:auto; padding:6px 12px;" onclick="sendFriendRequest('${u._id}')">+ Anfrage</button>`}
+        </div>`;
+      });
+      html += `</div>`;
+    }
   }
   if (!state.friendsData) return html + `<div class="body-text">Lade Freunde...</div>`;
   const {friends, incoming, outgoing} = state.friendsData;
@@ -952,6 +1054,7 @@ function renderGames(){
     ["cookie", icon("cookie",16), "Cookie Clicker"],
     ["factory", icon("factory",16), "Factory"],
     ["casino", icon("dice",16), "Casino"],
+    ["crypto", icon("trending",16), "Krypto"],
   ];
   const tabBar = `<div class="segmented" style="margin-bottom:20px;">${tabs.map(([k,ic,label])=>
     `<button class="${state.gamesTab===k?'active':''}" onclick="switchGamesTab('${k}')">${ic} ${label}</button>`
@@ -968,6 +1071,7 @@ function liveAreaInner(){
   if (state.gamesTab==="cookie") return renderCookieClicker();
   if (state.gamesTab==="factory") return renderFactory();
   if (state.gamesTab==="casino") return renderCasino();
+  if (state.gamesTab==="crypto") return renderCrypto();
   return renderArcade();
 }
 // Aktualisiert NUR den Spiel-Bereich, ohne Sidebar/Navigation/Rest der Seite
@@ -1049,6 +1153,76 @@ function syncIdeGutter(){
   if (!ta || !gutter) return;
   const lines = ta.value.split("\n").length;
   gutter.textContent = Array.from({length:lines}, (_,i)=>i+1).join("\n");
+}
+
+/* ---------- RENDER: SERVER/GRUPPEN (Discord-artig, nur Text-Channels) ---------- */
+function renderGroups(){
+  if (state.myGroups===null) return `<div class="body-text">Lade Server...</div>`;
+  return `<div class="groups-layout">
+    <div class="groups-rail">
+      ${state.myGroups.map(g=>`
+        <button class="groups-rail-item ${state.activeGroup && state.activeGroup._id===g._id?'active':''}" title="${escapeHtml(g.name)}" onclick="openGroup('${g._id}')">${g.icon}</button>
+      `).join("")}
+      <button class="groups-rail-item groups-rail-add" title="Server erstellen" onclick="createGroup()">+</button>
+      <button class="groups-rail-item groups-rail-add" title="Server beitreten" onclick="joinGroupByCode()">${icon("userPlus",18)}</button>
+    </div>
+    <div class="groups-main">
+      ${state.activeGroup ? renderGroupDetail() : renderGroupsEmpty()}
+    </div>
+  </div>`;
+}
+function renderGroupsEmpty(){
+  return `<div style="padding:40px; text-align:center;">
+    <div style="font-size:48px; margin-bottom:10px;">👥</div>
+    <div class="title">Server & Gruppen</div>
+    <div class="body-text" style="margin:10px auto 20px; max-width:420px;">Erstelle einen eigenen Server mit Text-Channels für deine Freunde, oder tritt mit einem Einladungscode einem bestehenden bei.</div>
+    <div style="display:flex; gap:10px; justify-content:center;">
+      <button class="btn btn-primary" onclick="createGroup()">${icon("plus",16)} Server erstellen</button>
+      <button class="btn btn-secondary" onclick="joinGroupByCode()">${icon("userPlus",16)} Beitreten</button>
+    </div>
+    <div class="muted" style="margin-top:20px; max-width:420px; margin-left:auto; margin-right:auto;">Hinweis: Es gibt nur Text-Channels. Voice-Channels wie bei Discord bräuchten eine eigene Echtzeit-Audio-Infrastruktur und sind (noch) nicht Teil der Plattform.</div>
+  </div>`;
+}
+function renderGroupDetail(){
+  const g = state.activeGroup;
+  const cats = {};
+  g.channels.forEach(c=>{ (cats[c.category] = cats[c.category]||[]).push(c); });
+  return `<div class="groups-channels">
+    <div class="groups-server-head">
+      <b>${escapeHtml(g.name)}</b>
+      <button class="btn-ghost" onclick="showGroupInvite()">${icon("userPlus",14)}</button>
+    </div>
+    ${Object.entries(cats).map(([cat, channels])=>`
+      <div class="groups-cat">${escapeHtml(cat)}</div>
+      ${channels.map(c=>`<button class="groups-channel ${state.activeChannelId===c.id?'active':''}" onclick="openChannel('${g._id}','${c.id}')"># ${escapeHtml(c.name)}</button>`).join("")}
+    `).join("")}
+    <button class="groups-channel" style="opacity:.7;" onclick="addGroupChannel()">+ Channel</button>
+    <div style="flex:1;"></div>
+    <button class="groups-channel" style="color:var(--danger);" onclick="deleteActiveGroup()">${icon("trash",13)} Server löschen</button>
+    <button class="groups-channel" onclick="leaveActiveGroup()">${icon("logout",13)} Verlassen</button>
+  </div>
+  <div class="groups-chat">
+    ${state.activeChannelId ? `
+      <div class="groups-chat-head"># ${escapeHtml((g.channels.find(c=>c.id===state.activeChannelId)||{}).name||"")}</div>
+      <div class="groups-chat-messages" id="groupChatScroll">
+        ${state.groupMessages.map(m=>`<div class="groups-msg">
+          <span style="font-size:18px;">${m.fromAvatar||"😀"}</span>
+          <div><b>${escapeHtml(m.fromUsername)}</b> <span class="muted" style="font-size:11px;">${new Date(m.createdAt).toLocaleString('de-DE')}</span>
+          <div>${escapeHtml(m.text)}</div></div>
+        </div>`).join("") || `<div class="body-text muted">Noch keine Nachrichten — schreib die erste!</div>`}
+      </div>
+      <div class="groups-chat-input">
+        <input id="groupMsgInput" type="text" placeholder="Nachricht an #${escapeHtml((g.channels.find(c=>c.id===state.activeChannelId)||{}).name||"")}" maxlength="1000"
+          onkeydown="if(event.key==='Enter'){sendGroupMessage(this.value); this.value='';}"/>
+        <button class="btn btn-primary" onclick="const i=document.getElementById('groupMsgInput'); sendGroupMessage(i.value); i.value='';">${icon("arrowRight",16)}</button>
+      </div>
+    ` : `<div class="body-text" style="padding:30px;">Wähl links einen Channel aus.</div>`}
+  </div>`;
+}
+async function showGroupInvite(){
+  const g = state.activeGroup;
+  if (!g) return;
+  await customAlert(`Einladungscode für "${g.name}":\n\n${g.inviteCode}\n\nDiesen Code kann jeder unter "Server beitreten" eingeben.`, "Einladen");
 }
 
 /* ---------- RENDER: HANDBUCH ---------- */
@@ -1150,6 +1324,7 @@ function renderAdminEditModal(){
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;">
         <button class="btn btn-secondary" onclick="adminToggleMute('${u._id}', ${!u.isMuted})">${u.isMuted?icon("check",14)+' Entstummen':icon("ban",14)+' Stummschalten'}</button>
         <button class="btn btn-secondary" onclick="adminKickUser('${u._id}','${escapeHtml(u.username)}')">${icon("logout",14)} Rauswerfen</button>
+        <button class="btn btn-secondary" onclick="adminResetPassword('${u._id}','${escapeHtml(u.username)}')">${icon("key",14)} Passwort zurücksetzen</button>
       </div>
       ${u.warnings && u.warnings.length ? `
         <div class="muted" style="margin-bottom:6px;">Verwarnungen (${u.warnings.length}):</div>
@@ -1307,27 +1482,48 @@ function renderProfile(){
 }
 
 /* ---------- RENDER: SETTINGS ---------- */
+const THEMES = [
+  {id:"orange", name:"CodeBase Orange", accent:"#ff7a1a", accent2:"#ffb020"},
+  {id:"blue", name:"Ozean-Blau", accent:"#2f6fe0", accent2:"#4fd1ff"},
+  {id:"purple", name:"Violett", accent:"#8a4fff", accent2:"#c084fc"},
+  {id:"green", name:"Matrix-Grün", accent:"#2fd673", accent2:"#8dffb0"},
+  {id:"pink", name:"Pink", accent:"#ff4fa3", accent2:"#ff9ecb"},
+  {id:"red", name:"Rot", accent:"#ff4545", accent2:"#ff9e6d"},
+];
+function applyTheme(themeId){
+  const t = THEMES.find(x=>x.id===themeId) || THEMES[0];
+  document.documentElement.style.setProperty("--accent", t.accent);
+  document.documentElement.style.setProperty("--accent-2", t.accent2);
+  localStorage.setItem("cb_theme", themeId);
+  state.theme = themeId;
+}
 function renderSettings(){
   const u = state.users[state.currentUser];
   return `
   <div class="title">⚙ Einstellungen</div>
   <div class="card" style="width:480px; margin-bottom:16px;">
-    <div class="section-title">Profil anpassen</div>
+    <div class="section-title">Konto</div>
     <div class="field-label">Nutzername</div>
     <div style="display:flex; gap:8px; margin-bottom:10px;">
       <input id="settingsUsername" type="text" value="${escapeHtml(state.currentUser)}" style="flex:1;"/>
       <button class="btn btn-secondary" onclick="changeUsername(document.getElementById('settingsUsername').value)">Ändern</button>
     </div>
-    <div class="field-label">Bio</div>
-    <textarea id="settingsBio" rows="2" maxlength="160" style="width:100%; margin-bottom:8px;">${escapeHtml(u.bio||"")}</textarea>
-    <button class="btn btn-secondary" style="margin-bottom:12px;" onclick="saveBio(document.getElementById('settingsBio').value)">Bio speichern</button>
-    <div class="muted">Avatar, Profilbild und Banner kannst du im <button class="btn-ghost" onclick="goto('profile')">Profil</button> ändern.</div>
+    <div class="body-text" style="margin-bottom:6px;">Rolle: <b>${escapeHtml(u.role)}</b></div>
+    <button class="btn btn-secondary" style="margin:6px 0 10px;" onclick="generateRecoveryCode()">🔑 Neuen Wiederherstellungs-Code erzeugen</button>
+    <div class="muted">Bio, Avatar, Profilbild und Banner änderst du im <button class="btn-ghost" onclick="goto('profile')">Profil</button>.</div>
+    <button class="btn btn-secondary" style="margin-top:14px;" onclick="logout()">Abmelden</button>
   </div>
   <div class="card" style="width:480px; margin-bottom:16px;">
-    <div class="section-title">Konto</div>
-    <div class="body-text" style="margin-bottom:6px;">Rolle: <b>${escapeHtml(u.role)}</b></div>
-    <div class="body-text" style="margin-bottom:12px;">Dein Fortschritt wird automatisch in MongoDB gespeichert und bei jedem Login geladen.</div>
-    <button class="btn btn-secondary" onclick="logout()">Abmelden</button>
+    <div class="section-title">${icon("settings",18)} Farbthema</div>
+    <div class="body-text" style="margin-bottom:12px;">Ändert die Akzentfarbe der ganzen App — nur bei dir sichtbar, wird im Browser gemerkt.</div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      ${THEMES.map(t=>`<button class="theme-swatch ${state.theme===t.id?'selected':''}" style="--sw1:${t.accent}; --sw2:${t.accent2};" title="${t.name}" onclick="applyTheme('${t.id}'); render();"></button>`).join("")}
+    </div>
+  </div>
+  <div class="card" style="width:480px; margin-bottom:16px;">
+    <div class="section-title">Sound</div>
+    <div class="body-text" style="margin-bottom:10px;">Klick-, Erfolgs- und Spiel-Sounds an/aus.</div>
+    <button class="btn btn-secondary" onclick="toggleSound(); render();">${state.soundOn?"🔊 Sound ist an":"🔇 Sound ist aus"}</button>
   </div>
   <div class="card" style="width:480px; margin-bottom:16px;">
     <div class="section-title">Lokales Backup</div>
@@ -1365,6 +1561,7 @@ function render(){
     case "projects": inner = renderProjects(); break;
     case "handbuch": inner = renderHandbuch(); break;
     case "legal": inner = renderLegal(); break;
+    case "groups": inner = renderGroups(); break;
     case "shop": inner = renderShop(); break;
     case "subscription": inner = renderSubscription(); break;
     case "friends": inner = renderFriends(); break;
@@ -1374,7 +1571,22 @@ function render(){
     case "admin": inner = (isAdminUser()||hasPermission("users.view")) ? renderAdmin() : renderDashboard(); break;
     default: inner = renderDashboard();
   }
+  // WICHTIG: innerHTML-Ersatz zerstört den alten .content-Knoten komplett ->
+  // der Browser setzt dessen Scroll-Position danach auf 0 zurück. Das war der
+  // Grund, warum man z.B. in einer Aufgabe ganz unten war und nach dem
+  // nächsten Neuzeichnen (Hintergrund-Sync, Antwort prüfen, ...) plötzlich
+  // wieder oben landete. Fix: Scroll-Position vorher merken und danach
+  // wiederherstellen — AUSSER bei einer echten Seiten-Navigation (_navFlash),
+  // da soll man bewusst oben starten.
+  const oldContent = app.querySelector(".content");
+  const prevScrollTop = oldContent ? oldContent.scrollTop : 0;
+  const isNav = state._navFlash;
+
   app.innerHTML = renderShell(inner) + renderModal() + renderTutorial();
   state._navFlash = false; // Fade-In-Klasse nur EINMAL nach echter Navigation anwenden
+
+  const newContent = app.querySelector(".content");
+  if (newContent && !isNav) newContent.scrollTop = prevScrollTop;
+
   scheduleProgressSync(); // Fortschritt im Hintergrund mit dem Server abgleichen
 }

@@ -55,6 +55,8 @@ function restartTap(){
 }
 
 document.addEventListener("keydown",(e)=>{
+  const tg = e.target && e.target.tagName;
+  if (tg==="INPUT" || tg==="TEXTAREA" || tg==="SELECT") return;
   if (state.page==="games" && state.gamesTab==="arcade" && state.arcadeGame==="tap" && state.tap && !state.tap.over){
     const map = {ArrowUp:"Up",ArrowDown:"Down",ArrowLeft:"Left",ArrowRight:"Right"};
     if (map[e.key]){ tapAnswer(map[e.key]); e.preventDefault(); }

@@ -50,6 +50,8 @@ function startPacman(){
   startPacmanTimer();
 }
 function pacmanKeyHandler(e){
+  const t = e.target, tag = t && t.tagName;
+  if (tag==="INPUT" || tag==="TEXTAREA" || tag==="SELECT" || (t && t.isContentEditable)) return;
   const g = state.pacman;
   if (!g || g.over) return;
   const map = {ArrowUp:"Up", ArrowDown:"Down", ArrowLeft:"Left", ArrowRight:"Right", w:"Up", s:"Down", a:"Left", d:"Right"};

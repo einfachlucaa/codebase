@@ -17,6 +17,7 @@ function goto(page){
   if (page==="projects") loadProjects();
   if (page==="admin") { loadAdminUsers(); startAdminLivePoll(); }
   if (page==="dashboard") loadDashboardExtras();
+  if (page==="groups" && state.myGroups===null) loadMyGroups();
 }
 function switchGamesTab(tab){
   state.gamesTab = tab; state.page="games"; state.arcadeGame=null; exitArcadeTimers();
@@ -24,6 +25,7 @@ function switchGamesTab(tab){
   render();
   if (tab==="cookie") loadCookieState();
   if (tab==="factory") loadFactoryState();
+  if (tab==="crypto") loadCryptoState();
 }
 function exitArcadeTimers(){
   stopTapTimer();
@@ -110,6 +112,7 @@ function determineInitialAuthMode(){
   const path = window.location.pathname;
   if (path === "/login") return "login";
   if (path === "/register") return "register";
+  if (path === "/forgot") return "forgot";
   return localStorage.getItem("cb_visited") ? "login" : "register";
 }
 function syncAuthUrl(mode){
@@ -119,7 +122,7 @@ function syncAuthUrl(mode){
 window.addEventListener("popstate", ()=>{
   if (!state.currentUser){
     const path = window.location.pathname;
-    if (path==="/login" || path==="/register"){ state.authMode = path.slice(1); render(); }
+    if (path==="/login" || path==="/register" || path==="/forgot"){ state.authMode = path.slice(1); render(); }
   }
 });
 
@@ -154,14 +157,42 @@ async function doRegister(username, password, passwordConfirm){
   }
   state.authBusy = true; state.authError=""; render();
   try{
-    const { user } = await apiPost("/auth/register", { username:(username||"").trim(), password });
+    const { user, recoveryCode } = await apiPost("/auth/register", { username:(username||"").trim(), password });
     hydrateUser(user);
     enterApp();
+    if (recoveryCode) showRecoveryCode(recoveryCode);
   } catch(err){
     state.authError = err.message;
   } finally {
     state.authBusy = false; render();
   }
+}
+function showRecoveryCode(code){
+  return customAlert(`Dein Wiederherstellungs-Code:\n\n${code}\n\nSchreib ihn dir auf oder mach ein Foto! Damit kannst du dein Passwort zurücksetzen, falls du es vergisst. Er wird nur EINMAL angezeigt.`, "🔑 Wichtig: Code speichern");
+}
+async function doResetPassword(username, code, newPass){
+  if (state.authBusy) return;
+  state.authBusy = true; state.authError=""; render();
+  try{
+    const r = await apiPost("/auth/reset-password", { username:(username||"").trim(), recoveryCode:code, newPassword:newPass });
+    state.authBusy = false; state.authMode = "login"; syncAuthUrl("login"); render();
+    await showRecoveryCode(r.recoveryCode);
+    return;
+  } catch(err){ state.authError = err.message; }
+  state.authBusy = false; render();
+}
+async function generateRecoveryCode(){
+  const pw = await customPrompt("Zur Sicherheit: gib dein aktuelles Passwort ein. Ein bisheriger Code wird ungültig.", "", "Neuer Wiederherstellungs-Code");
+  if (!pw) return;
+  try{ const { recoveryCode } = await apiPost("/auth/recovery-code", { password: pw }); await showRecoveryCode(recoveryCode); }
+  catch(err){ await customAlert(err.message); }
+}
+async function adminResetPassword(id, username){
+  if (!(await customConfirm(`Neues Zufalls-Passwort für ${username} setzen? Er wird ausgeloggt.`))) return;
+  try{
+    const { tempPassword } = await apiPost(`/admin/users/${id}/reset-password`);
+    await customAlert(`Neues Passwort für ${username}:\n\n${tempPassword}\n\nGib es ihm weiter — es wird nur jetzt angezeigt.`, "Passwort zurückgesetzt");
+  } catch(err){ await customAlert(err.message); }
 }
 async function logout(){
   exitArcadeTimers();
@@ -231,13 +262,13 @@ function startProgressReconcile(){
   if (_reconcileTimer) return;
   _reconcileTimer = setInterval(async ()=>{
     if (!state.currentUser) return;
+    if (document.hidden) return; // Tab im Hintergrund -> unnötigen Traffic/Akku sparen
     try{
-      // /auth/me statt /progress: liefert in einem Rutsch den echten DB-Stand
-      // (für den Abgleich) UND den "wird geprüft"-Status. Schlägt der Call mit
-      // 401/403 fehl (gesperrt, gekickt, Session ungültig), wird das SOFORT im
-      // laufenden Frontend behandelt — kein Browser-Reload nötig, nur der
-      // betroffene Spieler-Screen wechselt in der SPA selbst.
-      const { user: fresh } = await apiGet("/auth/me");
+      // /auth/status statt /auth/me: liefert nur die schlanken Felder (Progress,
+      // Sperr-/Review-Status), OHNE Profilbild/Banner (können mehrere hundert
+      // KB Base64 sein und ändern sich praktisch nie) — spart bei den meisten
+      // Nutzern den Großteil der Bandbreite dieses alle-10-Sekunden-Checks.
+      const fresh = await apiGet("/auth/status");
       const u = state.users[state.currentUser];
       if (!u) return;
       // WICHTIG: nur neu zeichnen, wenn sich wirklich etwas geändert hat —
@@ -248,6 +279,7 @@ function startProgressReconcile(){
       state.lastSyncedEconomy = { coins: u.progress.coins, gems: u.progress.gems };
       state.underReviewBy = fresh.underReviewBy || null;
       u.warnings = fresh.warnings || [];
+      u.isMuted = !!fresh.isMuted;
       const after = JSON.stringify({p:u.progress, r:state.underReviewBy, ban:fresh.banned, warn:u.warnings.length});
       if (before !== after) render();
     } catch(err){
@@ -275,6 +307,7 @@ function handleSessionEnded(err){
 
 /* ---------- BOOTSTRAP: laufende Session wiederherstellen (Login übersteht Reload) ---------- */
 async function bootstrap(){
+  applyTheme(state.theme); // gespeichertes Farbthema sofort anwenden, noch vor dem Login
   try{
     const { user } = await apiGet("/auth/me");
     hydrateUser(user);
@@ -385,15 +418,106 @@ async function loadFriends(){
   catch(err){ state.friendsData = {friends:[],incoming:[],outgoing:[]}; }
   render();
 }
+let _friendSearchTimer = null;
 async function searchFriendUsers(q){
-  if (!q || q.trim().length<2){ state.friendSearchResults = []; render(); return; }
-  try{ const {users} = await apiGet(`/friends/search?q=${encodeURIComponent(q.trim())}`); state.friendSearchResults = users; }
-  catch{ state.friendSearchResults = []; }
+  clearTimeout(_friendSearchTimer);
+  if (!q || q.trim().length<2){ state.friendSearchResults = null; render(); return; }
+  state.friendSearchResults = "loading";
+  render();
+  _friendSearchTimer = setTimeout(async ()=>{
+    try{ const {users} = await apiGet(`/friends/search?q=${encodeURIComponent(q.trim())}`); state.friendSearchResults = users; }
+    catch(err){ state.friendSearchResults = { error: err.message }; }
+    render();
+  }, 300);
+}
+/* ---------- GRUPPEN / SERVER (Discord-artig, nur Text-Channels — siehe
+   Hinweis zu Voice-Channels in der README/Chat-Verlauf) ---------- */
+async function loadMyGroups(){
+  try{ const {groups} = await apiGet("/groups"); state.myGroups = groups; }
+  catch{ state.myGroups = []; }
   render();
 }
+async function createGroup(){
+  const name = await customPrompt("Name des neuen Servers:", "", "Server erstellen");
+  if (!name || !name.trim()) return;
+  try{
+    const { group } = await apiPost("/groups", { name: name.trim() });
+    await loadMyGroups();
+    await openGroup(group._id);
+  } catch(err){ await customAlert(err.message); }
+}
+async function joinGroupByCode(){
+  const code = await customPrompt("Einladungscode eingeben:", "", "Server beitreten");
+  if (!code || !code.trim()) return;
+  try{
+    const { group } = await apiPost("/groups/join", { inviteCode: code.trim() });
+    await loadMyGroups();
+    await openGroup(group._id);
+  } catch(err){ await customAlert(err.message); }
+}
+async function openGroup(id){
+  state.page = "groups"; state._navFlash = true;
+  state.activeGroup = null; state.activeChannelId = null; state.groupMessages = [];
+  render();
+  try{
+    const { group, members } = await apiGet(`/groups/${id}`);
+    state.activeGroup = group; state.activeGroupMembers = members;
+    const firstChannel = group.channels[0];
+    if (firstChannel) await openChannel(group._id, firstChannel.id);
+    else render();
+  } catch(err){ await customAlert(err.message); state.page="groups"; render(); }
+}
+async function openChannel(groupId, channelId){
+  state.activeChannelId = channelId;
+  render();
+  try{ const {messages} = await apiGet(`/groups/${groupId}/channels/${channelId}/messages`); state.groupMessages = messages; }
+  catch{ state.groupMessages = []; }
+  render();
+}
+async function sendGroupMessage(text){
+  const g = state.activeGroup;
+  if (!g || !state.activeChannelId || !text || !text.trim()) return;
+  try{
+    await apiPost(`/groups/${g._id}/channels/${state.activeChannelId}/messages`, { text: text.trim() });
+    await openChannel(g._id, state.activeChannelId);
+    playSound("click");
+  } catch(err){ await customAlert(err.message); }
+}
+async function addGroupChannel(){
+  const g = state.activeGroup;
+  if (!g) return;
+  const name = await customPrompt("Name des neuen Channels:", "", "Channel erstellen");
+  if (!name || !name.trim()) return;
+  const category = await customPrompt("Kategorie (optional):", "Allgemein", "Kategorie");
+  try{
+    const { group } = await apiPost(`/groups/${g._id}/channels`, { name: name.trim(), category: (category||"Allgemein").trim() });
+    state.activeGroup = group; render();
+  } catch(err){ await customAlert(err.message); }
+}
+async function leaveActiveGroup(){
+  const g = state.activeGroup;
+  if (!g) return;
+  if (!(await customConfirm(`"${g.name}" wirklich verlassen?`))) return;
+  try{
+    await apiPost(`/groups/${g._id}/leave`);
+    state.activeGroup = null; state.activeChannelId = null;
+    await loadMyGroups();
+  } catch(err){ await customAlert(err.message); }
+}
+async function deleteActiveGroup(){
+  const g = state.activeGroup;
+  if (!g) return;
+  if (!(await customConfirm(`"${g.name}" wirklich UNWIDERRUFLICH löschen? Alle Nachrichten gehen verloren.`))) return;
+  try{
+    await apiDelete(`/groups/${g._id}`);
+    state.activeGroup = null; state.activeChannelId = null;
+    await loadMyGroups();
+  } catch(err){ await customAlert(err.message); }
+}
+
 async function sendFriendRequest(id){
-  try{ await apiPost(`/friends/request/${id}`); playSound("notify"); await loadFriends(); }
-  catch(err){ customAlert(err.message); }
+  try{ await apiPost(`/friends/request/${id}`); playSound("notify"); await loadFriends(); render(); }
+  catch(err){ await customAlert(err.message); }
 }
 async function respondFriendRequest(id, accept){
   try{ await apiPost(`/friends/respond/${id}`, { accept }); await loadFriends(); }
@@ -442,6 +566,48 @@ async function buyCookieUpgrade(upgradeId){
 }
 
 /* ---------- FACTORY (Idle) ---------- */
+/* ---------- KRYPTO-HANDELSSPIEL (eigenes Demo-Guthaben, echte Live-Kurse) ---------- */
+let _cryptoPollTimer = null;
+async function loadCryptoState(){
+  try{ state.cryptoState = await apiGet("/crypto"); }
+  catch(err){ state.cryptoState = null; }
+  refreshLiveArea();
+  manageCryptoPoll();
+}
+function manageCryptoPoll(){
+  const shouldRun = state.page==="games" && state.gamesTab==="crypto";
+  if (shouldRun && !_cryptoPollTimer){
+    _cryptoPollTimer = setInterval(()=>{
+      if (state.page==="games" && state.gamesTab==="crypto" && !document.hidden) loadCryptoState();
+      else { clearInterval(_cryptoPollTimer); _cryptoPollTimer=null; }
+    }, 8000);
+  } else if (!shouldRun && _cryptoPollTimer){
+    clearInterval(_cryptoPollTimer); _cryptoPollTimer=null;
+  }
+}
+async function openCryptoPosition(side){
+  const input = document.getElementById("cryptoAmount");
+  const amount = input ? Number(input.value) : 0;
+  if (!amount || amount<=0){ await customAlert("Gib einen gültigen Betrag ein."); return; }
+  try{
+    await apiPost("/crypto/open", { side, amount });
+    playSound("click");
+    await loadCryptoState();
+  } catch(err){ await customAlert(err.message); }
+}
+async function closeCryptoPosition(){
+  try{
+    const res = await apiPost("/crypto/close");
+    playSound(res.pnl>=0 ? "win" : "lose");
+    await loadCryptoState();
+  } catch(err){ await customAlert(err.message); }
+}
+async function resetCryptoBalance(){
+  if (!(await customConfirm("Guthaben auf 5000 zurücksetzen? Nur einmal pro Tag möglich."))) return;
+  try{ await apiPost("/crypto/reset"); await loadCryptoState(); }
+  catch(err){ await customAlert(err.message); }
+}
+
 async function loadFactoryState(){
   try{ state.factoryState = await apiGet("/idle/factory"); }
   catch(err){ state.factoryState = null; }
@@ -716,6 +882,7 @@ function editProjectCode(code){
   _projectSaveTimer = setTimeout(saveActiveProject, 900);
 }
 function ideHandleTab(ev){
+  if (handleAutoPair(ev, editProjectCode)) return; // Klammern/Anführungszeichen-Automatik zuerst
   if (ev.key !== "Tab") return;
   ev.preventDefault();
   const ta = ev.target;
@@ -931,6 +1098,7 @@ function startAdminLivePoll(){
   stopAdminLivePoll();
   _adminPollTimer = setInterval(()=>{
     if (state.page!=="admin") { stopAdminLivePoll(); return; }
+    if (document.hidden) return; // Tab im Hintergrund -> nicht unnötig pollen
     if (state.adminEditingUser) return; // nicht mittendrin im Bearbeiten stören
     if (state.adminTab==="users") loadAdminUsers();
     else if (state.adminTab==="activity") loadAdminActivity();
@@ -938,6 +1106,17 @@ function startAdminLivePoll(){
   }, 6000);
 }
 function stopAdminLivePoll(){ if (_adminPollTimer){ clearInterval(_adminPollTimer); _adminPollTimer=null; } }
+// Sobald der Tab wieder sichtbar wird, sofort einmal aktualisieren statt bis
+// zu 10s zu warten — fühlt sich beim Zurückwechseln "live" an, ohne dauernd
+// im Hintergrund zu pollen, während niemand hinschaut.
+document.addEventListener("visibilitychange", ()=>{
+  if (document.hidden || !state.currentUser) return;
+  if (state.page==="admin"){
+    if (state.adminTab==="users") loadAdminUsers();
+    else if (state.adminTab==="activity") loadAdminActivity();
+    else if (state.adminTab==="unban") loadUnbanRequests();
+  }
+});
 
 async function adminSetBanned(id, banned){
   const reason = banned ? ((await customPrompt("Grund für die Sperre (optional):", "", "Nutzer sperren"))||"") : "";
